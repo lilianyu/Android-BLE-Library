@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+
+    <TextView
+        android:id="@+id/status"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_marginTop="2dp"
+        android:text="正在扫描设备..."
+        android:textSize="16sp"
+        android:gravity="center"
+        android:color="@android:color/black"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/tag_basic_info"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:background="#E5E5E5"
+        android:layout_marginTop="2dp"
+        android:layout_marginLeft="4dp"
+        android:layout_marginRight="4dp"
+        android:paddingLeft="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="12dp"
+        app:layout_constraintTop_toBottomOf="@id/status">
+
+        <TextView
+            android:id="@+id/tag_title_basic_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="基本信息"
+            android:textColor="#000000"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintLeft_toLeftOf="parent"/>
+
+        <TextView
+            android:id="@+id/tag_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="设备名:"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp"
+            app:layout_constraintLeft_toLeftOf="@id/tag_title_basic_info"
+            app:layout_constraintTop_toBottomOf="@id/tag_title_basic_info" />
+
+        <TextView
+            android:id="@+id/device_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="placeholder"
+            android:layout_marginLeft="20dp"
+            app:layout_constraintTop_toTopOf="@id/tag_name"
+            app:layout_constraintBottom_toBottomOf="@id/tag_name"
+            app:layout_constraintLeft_toRightOf="@id/tag_name"/>
+
+        <TextView
+            android:id="@+id/tag_mac_address"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="mac地址:"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp"
+            app:layout_constraintLeft_toLeftOf="@id/tag_name"
+            app:layout_constraintTop_toBottomOf="@id/tag_name" />
+
+        <TextView
+            android:id="@+id/mac_address"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="placeholder"
+            app:layout_constraintTop_toTopOf="@id/tag_mac_address"
+            app:layout_constraintLeft_toLeftOf="@id/device_name"/>
+
+        <TextView
+            android:id="@+id/tag_connect_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="连接状态:"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp"
+            app:layout_constraintLeft_toLeftOf="@id/tag_name"
+            app:layout_constraintTop_toBottomOf="@id/tag_mac_address" />
+
+        <TextView
+            android:id="@+id/connect_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="placeholder"
+            app:layout_constraintTop_toTopOf="@id/tag_connect_status"
+            app:layout_constraintLeft_toLeftOf="@id/device_name"/>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/tag_device_info"
+        android:layout_width="match_parent"
+        android:layout_height="140dp"
+        android:background="#E5E5E5"
+        android:layout_marginTop="20dp"
+        android:layout_marginLeft="4dp"
+        android:layout_marginRight="4dp"
+        android:paddingLeft="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="12dp"
+        app:layout_constraintTop_toBottomOf="@id/tag_basic_info">
+
+        <TextView
+            android:id="@+id/tag_com_device_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="获取设备信息"
+            android:textColor="#000000"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintLeft_toLeftOf="parent"/>
+
+        <TextView
+            android:id="@+id/review_data_device_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="查看发送数据"
+            android:layout_marginLeft="6dp"
+            app:layout_constraintLeft_toRightOf="@id/tag_com_device_info"
+            app:layout_constraintBottom_toBottomOf="@id/tag_com_device_info"/>
+
+        <TextView
+            android:id="@+id/tag_resp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="响应数据"
+            android:layout_marginTop="8dp"
+            app:layout_constraintTop_toBottomOf="@id/tag_com_device_info"
+            app:layout_constraintLeft_toLeftOf="@id/tag_com_device_info"/>
+
+        <TextView
+            android:id="@+id/resp_data"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="这是一个响应数据"
+            android:layout_marginTop="4dp"
+            android:layout_marginRight="4dp"
+            android:padding="2dp"
+            android:maxLines="4"
+            android:lines="4"
+            android:background="@android:color/white"
+            app:layout_constraintTop_toBottomOf="@id/tag_resp"
+            app:layout_constraintLeft_toLeftOf="@id/tag_resp"/>
+
+        <Button
+            android:id="@+id/send_device_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="发送"
+            android:textSize="16sp"
+            android:layout_marginRight="4dp"
+            app:layout_constraintTop_toTopOf="@id/tag_com_device_info"
+            app:layout_constraintBottom_toBottomOf="@id/tag_resp"
+            app:layout_constraintRight_toRightOf="parent"/>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/tag_upgrade_info"
+        android:layout_width="match_parent"
+        android:layout_height="140dp"
+        android:background="#E5E5E5"
+        android:layout_marginTop="20dp"
+        android:layout_marginLeft="4dp"
+        android:layout_marginRight="4dp"
+        android:paddingLeft="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="12dp"
+        app:layout_constraintTop_toBottomOf="@id/tag_device_info">
+
+        <TextView
+            android:id="@+id/tag_com_upgrade_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="发送升级信息"
+            android:textColor="#000000"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintLeft_toLeftOf="parent"/>
+
+        <TextView
+            android:id="@+id/review_data_upgrade_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="查看发送数据"
+            android:layout_marginLeft="6dp"
+            app:layout_constraintLeft_toRightOf="@id/tag_com_upgrade_info"
+            app:layout_constraintBottom_toBottomOf="@id/tag_com_upgrade_info"/>
+
+        <TextView
+            android:id="@+id/tag_resp_upgrade_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="发送详情"
+            android:layout_marginTop="8dp"
+            app:layout_constraintTop_toBottomOf="@id/tag_com_upgrade_info"
+            app:layout_constraintLeft_toLeftOf="@id/tag_com_upgrade_info"/>
+
+        <TextView
+            android:id="@+id/resp_data_upgrade_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="已发送xxx包数据"
+            android:layout_marginTop="4dp"
+            android:layout_marginRight="4dp"
+            android:padding="2dp"
+            android:maxLines="4"
+            android:lines="4"
+            android:background="@android:color/white"
+            app:layout_constraintTop_toBottomOf="@id/tag_resp_upgrade_info"
+            app:layout_constraintLeft_toLeftOf="@id/tag_resp_upgrade_info"/>
+
+        <Button
+            android:id="@+id/send_upgrade_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="发送"
+            android:textSize="16sp"
+            android:layout_marginRight="4dp"
+            app:layout_constraintTop_toTopOf="@id/tag_com_upgrade_info"
+            app:layout_constraintBottom_toBottomOf="@id/tag_resp_upgrade_info"
+            app:layout_constraintRight_toRightOf="parent"/>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/tag_upgrade_package"
+        android:layout_width="match_parent"
+        android:layout_height="140dp"
+        android:background="#E5E5E5"
+        android:layout_marginTop="20dp"
+        android:layout_marginLeft="4dp"
+        android:layout_marginRight="4dp"
+        android:paddingLeft="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="12dp"
+        app:layout_constraintTop_toBottomOf="@id/tag_upgrade_info">
+
+        <TextView
+            android:id="@+id/tag_com_upgrade_package"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="发送升级包"
+            android:textColor="#000000"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintLeft_toLeftOf="parent"/>
+
+        <TextView
+            android:id="@+id/review_data_upgrade_package"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="查看发送数据"
+            android:layout_marginLeft="6dp"
+            app:layout_constraintLeft_toRightOf="@id/tag_com_upgrade_package"
+            app:layout_constraintBottom_toBottomOf="@id/tag_com_upgrade_package"/>
+
+        <TextView
+            android:id="@+id/tag_resp_upgrade_package"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="响应数据"
+            android:layout_marginTop="8dp"
+            app:layout_constraintTop_toBottomOf="@id/tag_com_upgrade_package"
+            app:layout_constraintLeft_toLeftOf="@id/tag_com_upgrade_package"/>
+
+        <TextView
+            android:id="@+id/resp_data_upgrade_package"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="这是一个响应数据"
+            android:layout_marginTop="4dp"
+            android:layout_marginRight="4dp"
+            android:padding="2dp"
+            android:maxLines="4"
+            android:lines="4"
+            android:background="@android:color/white"
+            app:layout_constraintTop_toBottomOf="@id/tag_resp_upgrade_package"
+            app:layout_constraintLeft_toLeftOf="@id/tag_resp_upgrade_package"/>
+
+        <Button
+            android:id="@+id/send_upgrade_package"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="发送"
+            android:textSize="16sp"
+            android:layout_marginRight="4dp"
+            app:layout_constraintTop_toTopOf="@id/tag_com_upgrade_package"
+            app:layout_constraintBottom_toBottomOf="@id/tag_resp_upgrade_package"
+            app:layout_constraintRight_toRightOf="parent"/>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/tag_plain_data"
+        android:layout_width="match_parent"
+        android:layout_height="140dp"
+        android:background="#E5E5E5"
+        android:layout_marginTop="20dp"
+        android:layout_marginLeft="4dp"
+        android:layout_marginRight="4dp"
+        android:paddingLeft="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="12dp"
+        app:layout_constraintTop_toBottomOf="@id/tag_upgrade_package">
+
+        <TextView
+            android:id="@+id/tag_com_plain_data"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="获取常规数据"
+            android:textColor="#000000"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintLeft_toLeftOf="parent"/>
+
+        <TextView
+            android:id="@+id/review_data_plain_data"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="查看发送数据"
+            android:layout_marginLeft="6dp"
+            app:layout_constraintLeft_toRightOf="@id/tag_com_plain_data"
+            app:layout_constraintBottom_toBottomOf="@id/tag_com_plain_data"/>
+
+        <TextView
+            android:id="@+id/tag_resp_plain_data"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="响应数据"
+            android:layout_marginTop="8dp"
+            app:layout_constraintTop_toBottomOf="@id/tag_com_plain_data"
+            app:layout_constraintLeft_toLeftOf="@id/tag_com_plain_data"/>
+
+        <TextView
+            android:id="@+id/resp_data_plain_data"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="这是一个响应数据"
+            android:layout_marginTop="4dp"
+            android:layout_marginRight="4dp"
+            android:padding="2dp"
+            android:maxLines="4"
+            android:lines="4"
+            android:background="@android:color/white"
+            app:layout_constraintTop_toBottomOf="@id/tag_resp_plain_data"
+            app:layout_constraintLeft_toLeftOf="@id/tag_resp_plain_data"/>
+
+        <Button
+            android:id="@+id/send_plain_data"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="发送"
+            android:textSize="16sp"
+            android:layout_marginRight="4dp"
+            app:layout_constraintTop_toTopOf="@id/tag_com_plain_data"
+            app:layout_constraintBottom_toBottomOf="@id/tag_resp_plain_data"
+            app:layout_constraintRight_toRightOf="parent"/>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+</ScrollView>

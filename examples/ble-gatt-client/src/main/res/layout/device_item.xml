@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingLeft="20dp"
+    android:paddingRight="12dp"
+    android:paddingTop="8dp">
+
+    <TextView
+        android:id="@+id/device_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="device_name"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"/>
+
+    <TextView
+        android:id="@+id/mac_address"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="mac_address"
+        app:layout_constraintTop_toBottomOf="@id/device_name"
+        app:layout_constraintLeft_toLeftOf="@id/device_name"/>
+
+    <TextView
+        android:id="@+id/state"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="NOT BONDED"
+        app:layout_constraintTop_toBottomOf="@id/mac_address"
+        app:layout_constraintLeft_toLeftOf="@id/device_name"/>
+
+    <TextView
+        android:id="@+id/connect_state"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Unknown"
+        app:layout_constraintTop_toBottomOf="@id/state"
+        app:layout_constraintLeft_toLeftOf="@id/device_name"/>
+
+    <Button
+        android:id="@+id/connect"
+        android:layout_width="120dp"
+        android:layout_height="44dp"
+        android:text="CONNECT"
+        android:textSize="16sp"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        />
+
+    <Button
+        android:id="@+id/write"
+        android:layout_width="120dp"
+        android:layout_height="44dp"
+        android:layout_marginRight="8dp"
+        android:text="WRITE"
+        android:textSize="16sp"
+        app:layout_constraintBottom_toBottomOf="@id/connect"
+        app:layout_constraintRight_toLeftOf="@id/connect"
+        app:layout_constraintTop_toTopOf="@id/connect"
+        app:layout_constraintVertical_bias="1.0" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

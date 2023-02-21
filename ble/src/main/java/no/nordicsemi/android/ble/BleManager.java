@@ -1997,7 +1997,7 @@ public abstract class BleManager implements ILogger {
 	 * so the maximum size is MTU-3. The value will changed only if requested with
 	 * {@link #requestMtu(int)} and a successful callback is received. If the peripheral requests
 	 * MTU change, the {@link BluetoothGattCallback#onMtuChanged(BluetoothGatt, int, int)}
-	 * callback is not invoked, therefor the returned MTU value will not be correct.
+	 * callback is not invoked, therefore the returned MTU value will not be correct.
 	 * Use {@link android.bluetooth.BluetoothGattServerCallback#onMtuChanged(BluetoothDevice, int)}
 	 * to get the callback with right value requested from the peripheral side.
 	 *

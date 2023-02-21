@@ -5,6 +5,7 @@ import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
 import android.os.ParcelUuid
 import android.util.Log
+import spec.NedServiceProfile
 
 object BleAdvertiser {
 	private const val TAG = "ble-advertiser"
@@ -32,7 +33,8 @@ object BleAdvertiser {
 		return AdvertiseData.Builder()
 				.setIncludeDeviceName(false) // Including it will blow the length
 				.setIncludeTxPowerLevel(false)
-				.addServiceUuid(ParcelUuid(GattService.MyServiceProfile.MY_SERVICE_UUID))
+				.addServiceUuid(ParcelUuid(NedServiceProfile.NED_EVENT_SERVICE_UUID))
+				.addServiceUuid(ParcelUuid(NedServiceProfile.NED_DATA_SERVICE_UUID))
 				.build()
 	}
 }

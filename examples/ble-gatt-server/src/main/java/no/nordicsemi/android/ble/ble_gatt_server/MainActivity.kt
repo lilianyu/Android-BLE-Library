@@ -22,19 +22,30 @@
 
 package no.nordicsemi.android.ble.ble_gatt_server
 
+import android.bluetooth.BluetoothDevice
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.widget.EditText
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import no.nordicsemi.android.ble.observer.ServerObserver
 
 class MainActivity : AppCompatActivity() {
 
     private var gattServiceConn: GattServiceConn? = null
+    private val serverObserver: ServerObserver = MyServerObserver()
+    private val mainScope = CoroutineScope(Dispatchers.Main)
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,7 +56,7 @@ class MainActivity : AppCompatActivity() {
             override fun beforeTextChanged(p0: CharSequence?, p1: Int, p2: Int, p3: Int) {}
 
             override fun onTextChanged(p0: CharSequence?, p1: Int, p2: Int, p3: Int) {
-                gattServiceConn?.binding?.setMyCharacteristicValue(p0.toString())
+                gattServiceConn?.binding?.setEventCharacteristicValue(p0.toString())
             }
 
             override fun afterTextChanged(p0: Editable?) {}
@@ -81,15 +92,53 @@ class MainActivity : AppCompatActivity() {
         stopService(Intent(this, GattService::class.java))
     }
 
-    private class GattServiceConn : ServiceConnection {
+    private inner class GattServiceConn : ServiceConnection {
         var binding: DeviceAPI? = null
 
         override fun onServiceDisconnected(name: ComponentName?) {
+            binding?.setOuterServerObserver(null)
+
             binding = null
         }
 
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             binding = service as? DeviceAPI
+
+            binding?.setOuterServerObserver(serverObserver)
+        }
+    }
+
+    private inner class MyServerObserver : ServerObserver {
+        override fun onServerReady() {
+            val statusView = findViewById<TextView>(R.id.valueForStatus)
+
+
+            mainScope.launch {
+                mainHandler.run {
+                    statusView.text = "服务已准备好"
+                }
+            }
+        }
+
+        override fun onDeviceConnectedToServer(device: BluetoothDevice) {
+            val statusView = findViewById<TextView>(R.id.valueForStatus)
+
+            mainScope.launch {
+                mainHandler.run {
+                    statusView.text = "Device connected ${device.address}"
+                }
+            }
+        }
+
+        override fun onDeviceDisconnectedFromServer(device: BluetoothDevice) {
+
+            val statusView = findViewById<TextView>(R.id.valueForStatus)
+
+            mainScope.launch {
+                mainHandler.run {
+                    statusView.text = "Device disconnected ${device.address}"
+                }
+            }
         }
     }
 }

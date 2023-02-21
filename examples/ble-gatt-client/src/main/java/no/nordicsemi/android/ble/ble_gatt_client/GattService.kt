@@ -22,6 +22,7 @@
 
 package no.nordicsemi.android.ble.ble_gatt_client
 
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
@@ -38,8 +39,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.launch
 import no.nordicsemi.android.ble.BleManager
-import no.nordicsemi.android.ble.ValueChangedCallback
-import java.util.*
+import no.nordicsemi.android.ble.ble_gatt_client.repository.ScannerRepository
+import spec.NedServiceProfile
+import no.nordicsemi.android.ble.observer.ConnectionObserver
 
 
 /**
@@ -67,23 +69,33 @@ class GattService : Service() {
 
     private lateinit var bluetoothObserver: BroadcastReceiver
 
-    private var myCharacteristicChangedChannel: SendChannel<String>? = null
+    private var statusChangedChannel: SendChannel<String>? = null
+    private var responseChannel: SendChannel<ByteArray>? = null
+
+
+    private var deviceListener: ((BluetoothDevice?) -> Unit)? = null
 
     private val clientManagers = mutableMapOf<String, ClientManager>()
+
+    private lateinit var scannerRepo: ScannerRepository
+
 
     override fun onCreate() {
         super.onCreate()
 
         // Setup as a foreground service
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notificationChannel =
+                NotificationChannel(
+                        GattService::class.java.simpleName,
+                        resources.getString(R.string.gatt_service_name),
+                        NotificationManager.IMPORTANCE_DEFAULT
+                )
 
-        val notificationChannel = NotificationChannel(
-                GattService::class.java.simpleName,
-                resources.getString(R.string.gatt_service_name),
-                NotificationManager.IMPORTANCE_DEFAULT
-        )
-        val notificationService =
+            val notificationService =
                 getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationService.createNotificationChannel(notificationChannel)
+            notificationService.createNotificationChannel(notificationChannel)
+        }
 
         val notification = NotificationCompat.Builder(this, GattService::class.java.simpleName)
                 .setSmallIcon(R.mipmap.ic_launcher)
@@ -94,8 +106,8 @@ class GattService : Service() {
         startForeground(1, notification.build())
 
         // Observe OS state changes in BLE
-
         bluetoothObserver = object : BroadcastReceiver() {
+            @SuppressLint("MissingPermission")
             override fun onReceive(context: Context?, intent: Intent?) {
                 when (intent?.action) {
                     BluetoothAdapter.ACTION_STATE_CHANGED -> {
@@ -108,6 +120,7 @@ class GattService : Service() {
                             BluetoothAdapter.STATE_OFF -> disableBleServices()
                         }
                     }
+
                     BluetoothDevice.ACTION_BOND_STATE_CHANGED -> {
                         val device =
                                 intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
@@ -117,17 +130,11 @@ class GattService : Service() {
                             BluetoothDevice.BOND_NONE -> removeDevice(device)
                         }
                     }
-
                 }
             }
         }
         registerReceiver(bluetoothObserver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
         registerReceiver(bluetoothObserver, IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED))
-
-        // Startup BLE if we have it
-
-        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        if (bluetoothManager.adapter?.isEnabled == true) enableBleServices()
     }
 
     override fun onDestroy() {
@@ -147,7 +154,9 @@ class GattService : Service() {
     override fun onUnbind(intent: Intent?): Boolean =
             when (intent?.action) {
                 DATA_PLANE_ACTION -> {
-                    myCharacteristicChangedChannel = null
+                    statusChangedChannel = null
+                    responseChannel = null
+                    deviceListener = null
                     true
                 }
                 else -> false
@@ -157,17 +166,54 @@ class GattService : Service() {
      * A binding to be used to interact with data of the service
      */
     inner class DataPlane : Binder() {
-        fun setMyCharacteristicChangedChannel(sendChannel: SendChannel<String>) {
-            myCharacteristicChangedChannel = sendChannel
+        fun setChannel(statusChannel: SendChannel<String>, respChannel: SendChannel<ByteArray>) {
+            statusChangedChannel = statusChannel
+            responseChannel = respChannel
+        }
+
+        fun setOnDevicesChangeListener(listener: (BluetoothDevice?) -> Unit) {
+            deviceListener = listener
+        }
+
+        fun connectDevice(device: BluetoothDevice, connectionObserver: ConnectionObserver) {
+            val clientManager = clientManagers[device.address]
+            clientManager?.connect(device)?.useAutoConnect(true)?.enqueue()
+            clientManager?.connectionObserver = connectionObserver
+        }
+
+        fun enableServices() {
+            // Startup BLE if we have it
+            val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+            if (bluetoothManager.adapter?.isEnabled == true) {
+                enableBleServices()
+            }
+        }
+
+        fun write(device: BluetoothDevice, data: ByteArray) {
+            val clientManager = clientManagers[device.address]
+            clientManager?.write(data)
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun enableBleServices() {
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         if (bluetoothManager.adapter?.isEnabled == true) {
             Log.i(TAG, "Enabling BLE services")
-            bluetoothManager.adapter.bondedDevices.forEach { device -> addDevice(device) }
+
+            if (clientManagers.isEmpty()) {
+                defaultScope.launch {
+                    scannerRepo = ScannerRepository(this@GattService, bluetoothManager.adapter)
+                    statusChangedChannel?.send("正在扫描设备...")
+                    val device = scannerRepo.searchForServer()
+                    addDevice(device)
+                    deviceListener?.invoke(device)
+                }
+            }
         } else {
+            defaultScope.launch {
+                statusChangedChannel?.send("请打开蓝牙开关...")
+            }
             Log.w(TAG, "Cannot enable BLE services as either there is no Bluetooth adapter or it is disabled")
         }
     }
@@ -177,12 +223,14 @@ class GattService : Service() {
             clientManager.close()
         }
         clientManagers.clear()
+
+        deviceListener?.invoke(null)
     }
 
+    @SuppressLint("MissingPermission")
     private fun addDevice(device: BluetoothDevice) {
         if (!clientManagers.containsKey(device.address)) {
             val clientManager = ClientManager()
-            clientManager.connect(device).useAutoConnect(true).enqueue()
             clientManagers[device.address] = clientManager
         }
     }
@@ -200,10 +248,12 @@ class GattService : Service() {
          */
         const val DATA_PLANE_ACTION = "data-plane"
 
-        private const val TAG = "gatt-service"
+        private const val TAG = "gatt-serice"
     }
 
     private inner class ClientManager : BleManager(this@GattService) {
+        private var eventCharacteristic: BluetoothGattCharacteristic? = null
+        private var dataCharacteristic: BluetoothGattCharacteristic? = null
         override fun getGattCallback(): BleManagerGattCallback = GattCallback()
 
         override fun log(priority: Int, message: String) {
@@ -212,31 +262,52 @@ class GattService : Service() {
             }
         }
 
+        fun write(data: ByteArray) {
+            writeCharacteristic(dataCharacteristic, data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+                .split()
+                .enqueue()
+        }
+
         private inner class GattCallback : BleManagerGattCallback() {
-
-            private var myCharacteristic: BluetoothGattCharacteristic? = null
-
             override fun isRequiredServiceSupported(gatt: BluetoothGatt): Boolean {
-                val service = gatt.getService(MyServiceProfile.MY_SERVICE_UUID)
-                myCharacteristic =
-                        service?.getCharacteristic(MyServiceProfile.MY_CHARACTERISTIC_UUID)
-                val myCharacteristicProperties = myCharacteristic?.properties ?: 0
-                return (myCharacteristicProperties and BluetoothGattCharacteristic.PROPERTY_READ != 0) &&
-                       (myCharacteristicProperties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0)
+                val service = gatt.getService(NedServiceProfile.NED_EVENT_SERVICE_UUID)
+                eventCharacteristic =
+                        service?.getCharacteristic(NedServiceProfile.NED_EVENT_CHARACTERISTIC_UUID)
+                val eventCharacteristicProperties = eventCharacteristic?.properties ?: 0
+
+                val dataService = gatt.getService(NedServiceProfile.NED_DATA_SERVICE_UUID)
+                dataCharacteristic =
+                    dataService?.getCharacteristic(NedServiceProfile.NED_DATA_CHARACTERISTIC_UUID)
+                val dataCharacteristicProperties = dataCharacteristic?.properties ?: 0
+
+                return (eventCharacteristicProperties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) &&
+                        (dataCharacteristicProperties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0)
             }
 
             override fun initialize() {
-                setNotificationCallback(myCharacteristic).with { _, data ->
-                    if (data.value != null) {
-                        val value = String(data.value!!, Charsets.UTF_8)
-                        defaultScope.launch {
-                            myCharacteristicChangedChannel?.send(value)
-                        }
+                var mtu = 512
+                requestMtu(mtu)
+                    .with { bluetoothDevice: BluetoothDevice, i: Int ->
+                        mtu = i
                     }
+                    .enqueue()
+
+                setNotificationCallback(eventCharacteristic)
+                    .merge {
+                            output, lastPacket, index ->
+                        output.write(lastPacket)
+                        lastPacket?.size != mtu
+                    }
+                    .with { _, data ->
+                        if (data.value != null) {
+                            defaultScope.launch {
+                                responseChannel?.send(data.value!!)
+                            }
+                        }
                 }
 
                 beginAtomicRequestQueue()
-                        .add(enableNotifications(myCharacteristic)
+                        .add(enableNotifications(eventCharacteristic)
                                 .fail { _: BluetoothDevice?, status: Int ->
                                     log(Log.ERROR, "Could not subscribe: $status")
                                     disconnect().enqueue()
@@ -249,13 +320,8 @@ class GattService : Service() {
             }
 
             override fun onServicesInvalidated() {
-                myCharacteristic = null
+                eventCharacteristic = null
             }
         }
-    }
-
-    object MyServiceProfile {
-        val MY_SERVICE_UUID: UUID = UUID.fromString("80323644-3537-4F0B-A53B-CF494ECEAAB3")
-        val MY_CHARACTERISTIC_UUID: UUID = UUID.fromString("80323644-3537-4F0B-A53B-CF494ECEAAB3")
     }
 }

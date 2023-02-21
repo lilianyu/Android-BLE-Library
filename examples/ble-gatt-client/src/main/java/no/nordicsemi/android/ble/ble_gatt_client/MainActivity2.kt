@@ -1,89 +1,79 @@
-/*
- * Copyright (c) 2020, Nordic Semiconductor
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution.
- *
- * 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this
- * software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
- * USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
 package no.nordicsemi.android.ble.ble_gatt_client
 
+import android.annotation.SuppressLint
 import android.annotation.TargetApi
 import android.app.AlertDialog
+import android.bluetooth.BluetoothDevice
 import android.content.ComponentName
 import android.content.DialogInterface
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.*
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import nedprotocol.NedPacket
 import nedprotocol.PacketFactory
-import no.nordicsemi.android.ble.ble_gatt_client.databinding.ActivityMainBinding
+import no.nordicsemi.android.ble.ble_gatt_client.databinding.ActivityMain2Binding
+import no.nordicsemi.android.ble.observer.ConnectionObserver
 
-class MainActivity : AppCompatActivity() {
+class MainActivity2: AppCompatActivity()  {
+
     private val REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS: Int = 1001
 
     private val mainScope = CoroutineScope(Dispatchers.Main)
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    private var gattServiceConn: GattServiceConn? = null
+    private lateinit var binding: ActivityMain2Binding
+
+    private var device: BluetoothDevice? = null
+
+    private val statusChangedChannel = Channel<String>()
+    private val responseChannel = Channel<ByteArray>()
+
+    private var gattServiceConn: MainActivity2.GattServiceConn? = null
 
     private var gattServiceData: GattService.DataPlane? = null
 
-    private var adapter: DeviceAdapter = DeviceAdapter().apply {
-        connectListener = {
-            gattServiceData?.connectDevice(it, DeviceConnectionCallback())
-        }
-
-        writeListener = {
-            gattServiceData?.write(it, PacketFactory.packetForDeviceInfo())
-        }
-    }
-
-    private val myCharacteristicValueChangeNotifications = Channel<String>()
-
-    private lateinit var binding: ActivityMainBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        binding.bondedDevice.adapter = adapter
 
+        binding = ActivityMain2Binding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         if (Build.VERSION.SDK_INT >= 23) {
             // Marshmallow+ Permission APIs
             stuffMarshMallow();
         }
 
-        // Set up the UI so that notifications we receive are rendered
+        makeMainPageVisible(View.INVISIBLE)
 
-        val gattCharacteristicValue = binding.textViewGattCharacteristicValue
+        configCommandListener()
+
+        binding.status.text = "设备已启动..."
+        mainScope.launch {
+            for (newValue in statusChangedChannel) {
+                mainHandler.run {
+                    binding.status.text = newValue
+
+                    if (newValue == "设备已准备好") {
+                        makeMainPageVisible(View.VISIBLE)
+                    }
+                }
+            }
+        }
 
         mainScope.launch {
-            for (newValue in myCharacteristicValueChangeNotifications) {
+            for (value in responseChannel) {
                 mainHandler.run {
-                    gattCharacteristicValue.text = newValue
+                    updateResponse(value)
                 }
             }
         }
@@ -91,6 +81,18 @@ class MainActivity : AppCompatActivity() {
         // Startup our Bluetooth GATT service explicitly so it continues to run even if
         // this activity is not in focus
         startService(Intent(this, GattService::class.java))
+    }
+
+    private fun updateResponse(value: ByteArray) {
+        val packet = NedPacket.parsePacket(value)
+
+        when(packet?.commandCode) {
+            NedPacket.NED_RESP_GET_DEVICE_INFO -> binding.respData.text = value.contentToString()
+            NedPacket.NED_RESP_UPGRADE -> binding.respDataUpgradeInfo.text = value.contentToString()
+            NedPacket.NED_RESP_GET_PLAIN_DATA -> binding.respDataPlainData.text = value.contentToString()
+            NedPacket.NED_RESP_SEND_UPGRADE_PACKAGE -> binding.sendUpgradePackage.text = value.contentToString()
+            else -> binding.status.text = "响应数据错误~~~"
+        }
     }
 
     override fun onStart() {
@@ -118,6 +120,74 @@ class MainActivity : AppCompatActivity() {
         stopService(Intent(this, GattService::class.java))
     }
 
+    @SuppressLint("MissingPermission")
+    private fun updateDeviceInfo() {
+        if (device != null) {
+            binding.deviceName.text = device?.name
+            binding.macAddress.text = device?.address
+            binding.connectStatus.text = binding.status.text
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    fun makeMainPageVisible(visibility:Int) {
+        binding.tagBasicInfo.visibility= visibility
+        binding.tagDeviceInfo.visibility= visibility
+        binding.tagUpgradeInfo.visibility= visibility
+        binding.tagUpgradePackage.visibility= visibility
+        binding.tagPlainData.visibility= visibility
+    }
+
+    private fun configCommandListener() {
+        binding.sendDeviceInfo.setOnClickListener {
+            if (device != null) {
+                gattServiceData?.write(device!!, PacketFactory.packetForDeviceInfo())
+            }
+        }
+
+        binding.sendPlainData.setOnClickListener {
+            if (device != null) {
+                gattServiceData?.write(device!!, PacketFactory.packetForPlainData())
+            }
+        }
+
+        val packetForUpgradeInfo =
+            PacketFactory.packetForUpgradeInfo(1001024, 0xFF00124, "asdlkjfaklsjdfa".toByteArray())
+        binding.sendUpgradeInfo.setOnClickListener {
+            if (device != null) {
+                gattServiceData?.write(device!!, packetForUpgradeInfo)
+            }
+        }
+
+        binding.reviewDataDeviceInfo.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("获取设备信息")
+                .setMessage(PacketFactory.packetForDeviceInfo().contentToString())
+                .setPositiveButton("OK", null)
+                .create()
+                .show()
+        }
+
+        binding.reviewDataPlainData.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("获取常规数据")
+                .setMessage(PacketFactory.packetForPlainData().contentToString())
+                .setPositiveButton("OK", null)
+                .create()
+                .show()
+        }
+
+        binding.reviewDataUpgradeInfo.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("发送升级信息")
+                .setMessage(packetForUpgradeInfo.contentToString())
+                .setPositiveButton("OK", null)
+                .create()
+                .show()
+        }
+
+    }
+
     private inner class GattServiceConn : ServiceConnection {
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -128,25 +198,65 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        @SuppressLint("MissingPermission")
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             if (BuildConfig.DEBUG && GattService::class.java.name != name?.className)
                 error("Connected to unknown service")
             else {
                 gattServiceData = service as GattService.DataPlane
 
-//                gattServiceData?.setChannel(myCharacteristicValueChangeNotifications)
+                gattServiceData?.setChannel(statusChangedChannel, responseChannel)
 
                 gattServiceData?.setOnDevicesChangeListener {
-                    adapter.deviceList.clear()
                     if (it != null) {
-                        adapter.deviceList.add(it)
+                        gattServiceData?.connectDevice(it!!, DeviceConnectionCallback())
                     }
-                    adapter.notifyDataSetChanged()
-                }
 
-                gattServiceData?.enableServices()
+                }
             }
+
+            gattServiceData?.enableServices()
         }
+    }
+
+
+
+    inner class DeviceConnectionCallback: ConnectionObserver {
+        override fun onDeviceConnecting(device: BluetoothDevice) {
+            binding.status.text = "正在连接设备..."
+        }
+
+        override fun onDeviceConnected(device: BluetoothDevice) {
+            binding.status.text = "设备已连接"
+        }
+
+        override fun onDeviceFailedToConnect(device: BluetoothDevice, reason: Int) {
+            binding.status.text = "无法连接设备 - $reason"
+            this@MainActivity2.device = null
+        }
+
+        override fun onDeviceReady(device: BluetoothDevice) {
+            binding.status.text = "设备已准备好"
+
+            this@MainActivity2.device = device
+            makeMainPageVisible(View.VISIBLE)
+            updateDeviceInfo()
+        }
+
+        override fun onDeviceDisconnecting(device: BluetoothDevice) {
+            binding.status.text = "连接正在断开..."
+
+            this@MainActivity2.device = null
+            makeMainPageVisible(View.INVISIBLE)
+        }
+
+        override fun onDeviceDisconnected(device: BluetoothDevice, reason: Int) {
+            binding.status.text = "连接已断开"
+
+            this@MainActivity2.device = null
+            makeMainPageVisible(View.INVISIBLE)
+        }
+
     }
 
     override fun onRequestPermissionsResult(
@@ -228,12 +338,6 @@ class MainActivity : AppCompatActivity() {
             )
             return
         }
-        Toast.makeText(
-            this,
-            "No new Permission Required- Launching App .You are Awesome!!",
-            Toast.LENGTH_SHORT
-        )
-            .show()
     }
 
     private fun showMessageOKCancel(message: String, okListener: DialogInterface.OnClickListener) {

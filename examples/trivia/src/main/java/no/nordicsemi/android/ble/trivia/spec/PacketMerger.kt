@@ -20,6 +20,7 @@ class PacketMerger: DataMerger {
         if (lastPacket == null)
             return false
 
+         
         val buffer = ByteBuffer.wrap(lastPacket)
         if (index == 0) {
             expectedSize = buffer.short.toInt()

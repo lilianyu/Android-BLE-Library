@@ -22,6 +22,7 @@
 
 package no.nordicsemi.android.ble.ble_gatt_server
 
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
@@ -34,8 +35,11 @@ import android.os.Binder
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import nedprotocol.NedHandler
+import nedprotocol.NedPacket
 import no.nordicsemi.android.ble.BleManager
 import no.nordicsemi.android.ble.BleServerManager
+import no.nordicsemi.android.ble.ble_gatt_server.spec.NEDServiceProfile
 import no.nordicsemi.android.ble.observer.ServerObserver
 import java.nio.charset.StandardCharsets
 import java.util.*
@@ -94,7 +98,6 @@ class GattService : Service() {
         startForeground(1, notification.build())
 
         // Observe OS state changes in BLE
-
         bluetoothObserver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 when (intent?.action) {
@@ -114,7 +117,6 @@ class GattService : Service() {
         registerReceiver(bluetoothObserver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
 
         // Startup BLE if we have it
-
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         if (bluetoothManager.adapter?.isEnabled == true) enableBleServices()
     }
@@ -128,6 +130,7 @@ class GattService : Service() {
         return DataPlane()
     }
 
+    @SuppressLint("MissingPermission")
     private fun enableBleServices() {
         serverManager = ServerManager(this)
         serverManager!!.open()
@@ -142,6 +145,7 @@ class GattService : Service() {
         )
     }
 
+    @SuppressLint("MissingPermission")
     private fun disableBleServices() {
         bleAdvertiseCallback?.let {
             val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -158,10 +162,13 @@ class GattService : Service() {
      */
     private inner class DataPlane : Binder(), DeviceAPI {
 
-        override fun setMyCharacteristicValue(value: String) {
-            serverManager?.setMyCharacteristicValue(value)
+        override fun setEventCharacteristicValue(value: String) {
+            serverManager?.setEventCharacteristicValue(value)
         }
 
+        override fun setOuterServerObserver(observer: ServerObserver?) {
+            serverManager?.setOuterServerObserver(observer)
+        }
     }
 
     /*
@@ -173,12 +180,24 @@ class GattService : Service() {
             private val CLIENT_CHARACTERISTIC_CONFIG_DESCRIPTOR_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         }
 
-        private val myGattCharacteristic = sharedCharacteristic(
+
+        private var outerObserver:ServerObserver? = null
+
+        private val dataCharacteristic = sharedCharacteristic(
             // UUID:
-            MyServiceProfile.MY_CHARACTERISTIC_UUID,
+            NEDServiceProfile.NED_DATA_CHARACTERISTIC_UUID,
             // Properties:
-            BluetoothGattCharacteristic.PROPERTY_READ
-                   or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+            BluetoothGattCharacteristic.PROPERTY_WRITE,
+            // Permissions:
+            BluetoothGattCharacteristic.PERMISSION_WRITE_ENCRYPTED_MITM,
+            description("A characteristic to write", false)
+        )
+
+        private val eventCharacteristic = sharedCharacteristic(
+            // UUID:
+            NEDServiceProfile.NED_EVENT_CHARACTERISTIC_UUID,
+            // Properties:
+            BluetoothGattCharacteristic.PROPERTY_NOTIFY,
             // Permissions:
             BluetoothGattCharacteristic.PERMISSION_READ_ENCRYPTED_MITM,
             // Descriptors:
@@ -189,23 +208,36 @@ class GattService : Service() {
                         or BluetoothGattDescriptor.PERMISSION_WRITE_ENCRYPTED_MITM, byteArrayOf(0, 0)),
             description("A characteristic to be read", false) // descriptors
         )
-        private val myGattService = service(
+
+
+        private val eventService = service(
             // UUID:
-            MyServiceProfile.MY_SERVICE_UUID,
+            NEDServiceProfile.NED_EVENT_SERVICE_UUID,
             // Characteristics (just one in this case):
-            myGattCharacteristic
+            eventCharacteristic
         )
 
-        private val myGattServices = Collections.singletonList(myGattService)
+        private val dataService = service(
+            // UUID:
+            NEDServiceProfile.NED_DATA_SERVICE_UUID,
+            // Characteristics (just one in this case):
+            dataCharacteristic
+        )
+
+        private val nedGattServices = listOf(eventService, dataService)
 
         private val serverConnections = mutableMapOf<String, ServerConnection>()
 
-        override fun setMyCharacteristicValue(value: String) {
+        override fun setEventCharacteristicValue(value: String) {
             val bytes = value.toByteArray(StandardCharsets.UTF_8)
-            myGattCharacteristic.value = bytes
-            serverConnections.values.forEach { serverConnection ->
-                serverConnection.sendNotificationForMyGattCharacteristic(bytes)
+
+            serverConnections.values.forEach { serverConnection -> //for notify
+                serverConnection.sendNotificationForEventCharacteristic(bytes)
             }
+        }
+
+        override fun setOuterServerObserver(observer: ServerObserver?) {
+            outerObserver = observer
         }
 
         override fun log(priority: Int, message: String) {
@@ -217,11 +249,13 @@ class GattService : Service() {
         override fun initializeServer(): List<BluetoothGattService> {
             setServerObserver(this)
 
-            return myGattServices
+            return nedGattServices
         }
 
         override fun onServerReady() {
             log(Log.INFO, "Gatt server ready")
+
+            outerObserver?.onServerReady()
         }
 
         override fun onDeviceConnectedToServer(device: BluetoothDevice) {
@@ -232,8 +266,11 @@ class GattService : Service() {
             // required for the server-only use.
             serverConnections[device.address] = ServerConnection().apply {
                 useServer(this@ServerManager)
-                connect(device).enqueue()
+                connect(device)
+                    .enqueue()
             }
+
+            outerObserver?.onDeviceConnectedToServer(device)
         }
 
         override fun onDeviceDisconnectedFromServer(device: BluetoothDevice) {
@@ -241,7 +278,10 @@ class GattService : Service() {
 
             // The device has disconnected. Forget it and close.
             serverConnections.remove(device.address)?.close()
+
+            outerObserver?.onDeviceDisconnectedFromServer(device)
         }
+
 
         /*
          * Manages the state of an individual server connection (there can be many of these)
@@ -250,8 +290,12 @@ class GattService : Service() {
 
             private var gattCallback: GattCallback? = null
 
-            fun sendNotificationForMyGattCharacteristic(value: ByteArray) {
-                sendNotification(myGattCharacteristic, value).enqueue()
+            fun sendNotificationForEventCharacteristic(value: ByteArray) {
+                sendNotification(eventCharacteristic, value)
+                    .split()
+                    .done { Log.i("GattService", "done") }
+                    .fail { device, status ->  Log.i("GattService", "fail") }
+                    .enqueue()
             }
 
             override fun log(priority: Int, message: String) {
@@ -274,12 +318,39 @@ class GattService : Service() {
                 override fun onServicesInvalidated() {
                     // This is the place to nullify characteristics obtained above.
                 }
+
+                override fun initialize() {
+                    var length = 0
+
+                    setWriteCallback(dataCharacteristic)
+                        .merge { output, lastPacket, index ->
+                            if (lastPacket == null)
+                                return@merge false
+
+                            if (index == 0) {
+                                length = NedPacket.parseLength(lastPacket)
+                            }
+
+                            output.write(lastPacket)
+                            return@merge output.size() == length
+                        }
+                        .with { device, data ->
+                            if (data.value != null) {
+                                val packet = NedPacket.parsePacket(data.value!!)
+                                val resp = NedHandler.handle(packet!!)
+                                sendNotificationForEventCharacteristic(resp!!)
+                            }
+                        }
+                }
+
+                override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int) {
+                    super.onMtuChanged(gatt, mtu)
+                }
             }
+
+
         }
     }
 
-    object MyServiceProfile {
-        val MY_SERVICE_UUID: UUID = UUID.fromString("80323644-3537-4F0B-A53B-CF494ECEAAB3")
-        val MY_CHARACTERISTIC_UUID: UUID = UUID.fromString("80323644-3537-4F0B-A53B-CF494ECEAAB3")
-    }
+
 }
