@@ -1,5 +1,6 @@
 package spec
 
+import java.nio.ByteBuffer
 import java.util.*
 
 object NedServiceProfile {
@@ -12,6 +13,7 @@ object NedServiceProfile {
     val NED_EVENT_SERVICE_UUID: UUID =  UUID.fromString("0000FFE0-0000-1000-8000-00805F9B34FB")  //event
     val NED_EVENT_CHARACTERISTIC_UUID: UUID =  UUID.fromString("0000FFE4-0000-1000-8000-00805F9B34FB") //notify
 
+    val NED_MANUFACTURER_UUID: UUID = UUID.fromString("00005253-0000-1000-8000-00805F9B34FB")
     val NED_CONFIG_SERVICE_UUID: UUID =  UUID.fromString("0000FF90-0000-1000-8000-00805F9B34FB")  //config
     val NED_CONFIG_Device_NAME_CHARACTERISTIC_UUID: UUID =  UUID.fromString("0000FF91-0000-1000-8000-00805F9B34FB") //read/write
     val NED_CONFIG_COMM_INTERVAL_CHARACTERISTIC_UUID: UUID =  UUID.fromString("0000FF92-0000-1000-8000-00805F9B34FB") //read/write
@@ -21,5 +23,13 @@ object NedServiceProfile {
     val NED_CONFIG_PROD_CODE_CHARACTERISTIC_UUID: UUID =  UUID.fromString("0000FF96-0000-1000-8000-00805F9B34FB") //read/write
     val NED_CONFIG_TRANS_POWER_CHARACTERISTIC_UUID: UUID =  UUID.fromString("0000FF97-0000-1000-8000-00805F9B34FB") //read/write
     val NED_CONFIG_CUSTOM_AD_CONTENT_CHARACTERISTIC_UUID: UUID =  UUID.fromString("0000FF98-0000-1000-8000-00805F9B34FB") //read/write
+
+    val manufacturerData = ByteArray(14).apply {
+        ByteBuffer.wrap(this)
+            .putShort(0x1751)
+            .putInt(0x17710704)
+            .putInt(0x00020105)
+            .putInt(0x00010000)
+    }
 
 }

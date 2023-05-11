@@ -1,6 +1,7 @@
 package nedprotocol
 
 import nedprotocol.NedPacket.Companion.NED_REQ_UPGRADE
+import utils.CRC16Modbus
 import java.nio.ByteBuffer
 
 class NedPacket(var commandCode: Byte) {
@@ -18,6 +19,11 @@ class NedPacket(var commandCode: Byte) {
         const val NED_RESP_GET_DEVICE_INFO = 0xF3.toByte()
         const val NED_RESP_GET_PLAIN_DATA = 0xF4.toByte()
 
+        val COMMAND_REQ_RESP_MAP = mapOf(NED_REQ_UPGRADE to NED_RESP_UPGRADE,
+            NED_REQ_SEND_UPGRADE_PACKAGE to NED_RESP_SEND_UPGRADE_PACKAGE,
+            NED_REQ_GET_DEVICE_INFO to NED_RESP_GET_DEVICE_INFO,
+            NED_REQ_GET_PLAIN_DATA to NED_RESP_GET_PLAIN_DATA)
+
         const val SIZE_PACKET_META_INFO = 9
 
         fun parsePacket(packet: ByteArray): NedPacket? {
@@ -30,12 +36,24 @@ class NedPacket(var commandCode: Byte) {
                 throw NedParseException(-10001)
             }
 
-            var nedPacket = NedPacket(buffer.get(6))
-            nedPacket.packetIndex = buffer.getShort(4).toInt()
-            nedPacket.packetLength = buffer.getShort(2).toInt()
-            nedPacket.payload = ByteArray(nedPacket.packetLength-9).apply { buffer.get(7) }
+            val length = parseLength(packet)
 
-            return nedPacket
+            val crc = CRC16Modbus()
+            crc.update(packet!!, 0, length-2)
+            val checkSum = crc.crcBytes
+            if (checkSum[0]!=packet[length-2] || checkSum[1]!=packet[length-1]) {
+                throw NedParseException(-10002)
+            }
+
+            return NedPacket(buffer.get(6)).apply {
+                packetIndex = buffer.getShort(4).toInt()
+                packetLength = buffer.getShort(2).toInt()
+                payload = ByteArray(packetLength-9) {
+                    packet[7+it]
+                }
+
+                this.packet = packet
+            }
         }
 
         fun parseLength(packet: ByteArray): Int {
@@ -55,32 +73,39 @@ class NedPacket(var commandCode: Byte) {
     var packetIndex = 0
     var packetLength = 0
     var payload: ByteArray? = null
+    var packet:ByteArray?=null
 
-    fun packet(payload: ByteArray, index:UShort = 0u): ByteArray {
+    fun load(payload: ByteArray, index:UShort = 0u): ByteArray {
 
         packetLength = SIZE_PACKET_META_INFO + payload.size
         packetIndex = index.toInt()
         this.payload = payload
 
-        val fakeCRC:UShort = 0xFFFFu
-        return ByteArray(packetLength).apply {
+        packet = ByteArray(packetLength).apply {
             ByteBuffer.wrap(this)
                 .putShort(HEAD.toShort())
                 .putShort(packetLength.toShort())
                 .putShort(packetIndex.toShort())
-                .put(commandCode.toByte())
+                .put(commandCode)
                 .put(payload)
-                .putShort(fakeCRC.toShort())
         }
-    }
 
+        val crc = CRC16Modbus()
+        crc.update(packet!!, 0, packetLength-2)
+        val checkSum = crc.crcBytes
+        packet!![packetLength-2] = checkSum[0]
+        packet!![packetLength-1] = checkSum[1]
+
+        return packet!!
+
+    }
 }
 
 data class NedParseException(val errorCode: Int): Exception()
 
 fun main() {
     val nedRequest = NedPacket(NED_REQ_UPGRADE)
-    val packet = nedRequest.packet(ByteArray(2) {
+    val packet = nedRequest.load(ByteArray(2) {
         if (it == 0) 'A'.code.toByte() else 'B'.code.toByte()
     })
 

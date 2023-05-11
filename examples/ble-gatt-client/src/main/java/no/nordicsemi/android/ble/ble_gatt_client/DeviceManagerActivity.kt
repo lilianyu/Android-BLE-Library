@@ -1,0 +1,387 @@
+package no.nordicsemi.android.ble.ble_gatt_client
+
+import android.annotation.SuppressLint
+import android.annotation.TargetApi
+import android.app.AlertDialog
+import android.bluetooth.BluetoothDevice
+import android.content.ComponentName
+import android.content.DialogInterface
+import android.content.Intent
+import android.content.ServiceConnection
+import android.content.pm.PackageManager
+import android.os.*
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
+import nedprotocol.NedPacket
+import nedprotocol.PacketFactory
+import no.nordicsemi.android.ble.ble_gatt_client.databinding.ActivityDeviceManagerBinding
+import no.nordicsemi.android.ble.observer.ConnectionObserver
+import java.io.File
+import java.io.IOException
+import java.util.*
+
+class DeviceManagerActivity: AppCompatActivity()  {
+
+    private val REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS: Int = 1001
+
+    private val mainScope = CoroutineScope(Dispatchers.Main)
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private lateinit var binding: ActivityDeviceManagerBinding
+
+    private var device: BluetoothDevice? = null
+
+    private val statusChangedChannel = Channel<String>()
+
+    private var gattServiceConn: DeviceManagerActivity.GattServiceConn? = null
+
+    private var gattServiceData: GattService.DataPlane? = null
+
+
+    @SuppressLint("MissingPermission")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        binding = ActivityDeviceManagerBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        device = intent.getParcelableExtra("device")
+
+        makeMainPageVisible(View.INVISIBLE)
+
+        configCommandListener()
+
+        binding.status.text="正在连接设备..."
+        mainScope.launch {
+            for (newValue in statusChangedChannel) { //block
+                mainHandler.run {
+                    binding.status.text = newValue
+
+                    if (newValue == "设备已准备好") {
+                        makeMainPageVisible(View.VISIBLE)
+                    }
+                }
+            }
+        }
+
+        title = if (device?.name.isNullOrEmpty()) "未命名设备" else device?.name
+
+        // Startup our Bluetooth GATT service explicitly so it continues to run even if
+        // this activity is not in focus
+        startService(Intent(this, GattService::class.java))
+    }
+
+    private fun updateResponse(nedPacket: NedPacket) {
+
+        mainScope.launch {
+            when(nedPacket?.commandCode) {
+                NedPacket.NED_RESP_GET_DEVICE_INFO -> binding.respData.text = nedPacket.packet?.map { "%02X".format(it) }.toString()
+                NedPacket.NED_RESP_GET_PLAIN_DATA -> binding.respDataPlainData.text = nedPacket.packet?.map { "%02X".format(it) }.toString()
+                NedPacket.NED_RESP_SEND_UPGRADE_PACKAGE -> binding.respUpgradePackage.text = nedPacket.packet?.map { "%02X".format(it) }.toString()
+                else -> binding.status.text = "响应数据错误~~~"
+            }
+        }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.main_menu, menu)
+
+        return super.onCreateOptionsMenu(menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when(item.itemId) {
+            R.id.menu_main_sharing -> {
+                try {
+                    externalCacheDir?.let {
+                         val name = android.text.format.DateFormat.format("yyyy-MM-dd", Date())
+                         val  file = File("${it.absolutePath}/${name}")
+
+                         val contentUri = FileProvider.getUriForFile(this, NedApplication.FILE_PROVIDER_AUTHORITY, file)
+
+                         if (contentUri != null) {
+                             var shareIntent = Intent(Intent.ACTION_SEND)
+                             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                             shareIntent.type = "text/plain"
+                             /** set the corresponding mime type of the file to be shared */
+                             shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri)
+
+                             startActivity(Intent.createChooser(shareIntent, "Share to"))
+                         }
+                    }
+                } catch (e: IOException) {
+                    e.printStackTrace()
+                }
+
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+
+        val latestGattServiceConn = GattServiceConn()
+        if (bindService(Intent(GattService.DATA_PLANE_ACTION, null, this, GattService::class.java), latestGattServiceConn, 0)) {
+            gattServiceConn = latestGattServiceConn
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+
+        if (gattServiceConn != null) {
+            unbindService(gattServiceConn!!)
+            gattServiceConn = null
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+
+        // We only want the service around for as long as our app is being run on the device
+        stopService(Intent(this, GattService::class.java))
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun updateDeviceInfo() {
+        if (device != null) {
+            binding.deviceName.text = device?.name
+            binding.macAddress.text = device?.address
+            binding.connectStatus.text = binding.status.text
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    fun makeMainPageVisible(visibility:Int) {
+        binding.tagBasicInfo.visibility= visibility
+        binding.tagDeviceInfo.visibility= visibility
+        binding.tagUpgradePackage.visibility= visibility
+        binding.tagPlainData.visibility= visibility
+    }
+
+    private fun configCommandListener() {
+        binding.sendDeviceInfo.setOnClickListener {
+            device?.let{
+                gattServiceData?.getDeviceInfo(it)
+                    ?.apply {
+                        fail { failInfo: FailInfo, nedPacket: NedPacket? ->
+                            mainScope.launch {
+                                var errorMessage = "${failInfo.message}"
+                                failInfo.extra?.let {extra ->
+                                    errorMessage = "${errorMessage}, $extra"
+                                }
+                                nedPacket?.let { nedPacket ->
+                                    errorMessage = "${errorMessage} - ${nedPacket.packet?.map {byte ->  "%02X".format(byte) }.toString()}"
+                                }
+
+                                binding.respData.text = errorMessage
+                            }
+                        }
+                        done {
+                            mainScope.launch {
+                                val hexBytes = it?.packet?.map { byte ->
+                                    "%02X".format(byte)
+                                }
+
+                                binding.respData.text = hexBytes.toString()
+                            }
+                        }
+                    }?.enqueue()
+            }
+        }
+
+        binding.sendPlainData.setOnClickListener {
+            device?.let{
+                gattServiceData?.getPlainData(it)?.apply {
+                    fail { failInfo: FailInfo, nedPacket: NedPacket? ->
+                        mainScope.launch {
+
+                            var errorMessage = "${failInfo.message}"
+                            failInfo.extra?.let {extra ->
+                                errorMessage = "${errorMessage}, $extra"
+                            }
+                            nedPacket?.let { nedPacket ->
+                                errorMessage = "${errorMessage} - ${nedPacket.packet?.map {byte ->  "%02X".format(byte) }.toString()}"
+                            }
+
+                            binding.respDataPlainData.text = errorMessage
+                        }
+                    }
+                    done {
+                        mainScope.launch {
+                            val hexBytes = it?.packet?.map { byte ->
+                                "%02X".format(byte)
+                            }
+                            binding.respDataPlainData.text = hexBytes.toString()
+                        }
+                    }
+                }?.enqueue()
+            }
+        }
+
+        val bytes = assets.open("ChargingPointMaster.bin")
+//        val inputStream = assets.open("registration.pdf")
+//        val inputStream = assets.open("edit.svg")
+         .use {
+            val fileBytes = ByteArray(it.available())
+            it.read(fileBytes)
+            fileBytes
+        }
+
+        val packetForUpgradeInfo =
+            PacketFactory.packetForUpgradeInfo(bytes.size, 0xFF001243.toInt(), "asdlkjfaklsjdfa".toByteArray())
+
+        binding.sendUpgradePackage.setOnClickListener {
+            device?.let{
+                binding.sendUpgradePackage.isEnabled = false
+                gattServiceData?.upgradePackage(it, bytes, 0xFF001243.toInt())?.apply {
+                    progress { packet: ByteArray, index: Int ->
+                        mainScope.launch {
+//                            val packetString = packet?.map { "%02X".format(it) }.toString()
+                            binding.respUpgradePackage.text = "已发送${index}包数据"
+                        }
+                    }
+
+                    done {
+                        mainScope.launch {
+                            binding.sendUpgradePackage.isEnabled = true
+                            binding.respUpgradePackage.text = "发送完成"
+                        }
+                    }
+
+                    fail { failInfo: FailInfo, nedPacket: NedPacket? ->
+                        mainScope.launch {
+                            binding.sendUpgradePackage.isEnabled = true
+
+                            var errorMessage = "${failInfo.message}"
+                            failInfo.extra?.let {extra ->
+                                errorMessage = "${errorMessage}, $extra"
+                            }
+                            nedPacket?.let { nedPacket ->
+                                errorMessage = "$errorMessage - ${nedPacket.packet?.map { byte ->  "%02X".format(byte) }.toString()}"
+                            }
+
+                            binding.respUpgradePackage.text = errorMessage
+                        }
+                    }
+                }?.enqueue()
+            }
+
+        }
+
+        binding.reviewDataDeviceInfo.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("获取设备信息")
+                .setMessage(PacketFactory.packetForDeviceInfo().packet?.map { "%02X".format(it) }.toString())
+                .setPositiveButton("OK", null)
+                .create()
+                .show()
+        }
+
+        binding.reviewDataPlainData.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("获取常规数据")
+                .setMessage(PacketFactory.packetForPlainData().packet?.map { "%02X".format(it) }.toString())
+                .setPositiveButton("OK", null)
+                .create()
+                .show()
+        }
+
+        binding.reviewDataUpgradePackage.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("发送升级包")
+                .setMessage(packetForUpgradeInfo.packet?.map { "%02X".format(it) }.toString())
+                .setPositiveButton("OK", null)
+                .create()
+                .show()
+        }
+
+    }
+
+    private inner class GattServiceConn : ServiceConnection {
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            if (BuildConfig.DEBUG && GattService::class.java.name != name?.className) {
+                error("Disconnected from unknown service")
+            } else {
+                gattServiceData = null
+            }
+        }
+
+        @SuppressLint("MissingPermission")
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            if (BuildConfig.DEBUG && GattService::class.java.name != name?.className)
+                error("Connected to unknown service")
+            else {
+                gattServiceData = service as GattService.DataPlane
+
+                gattServiceData?.setChannel(statusChangedChannel)
+
+                if (device != null) {
+                    gattServiceData?.connectDevice(device!!, DeviceConnectionCallback())
+                }
+
+                gattServiceData?.setOnDevicesChangeListener {
+                    if (it != null) {
+                        gattServiceData?.connectDevice(it!!, DeviceConnectionCallback())
+                    }
+
+                }
+            }
+
+            gattServiceData?.enableServices()
+        }
+    }
+
+
+    inner class DeviceConnectionCallback : ConnectionObserver {
+
+        override fun onDeviceConnecting(device: BluetoothDevice) {
+            binding.status.text = "正在连接设备..."
+        }
+
+        override fun onDeviceConnected(device: BluetoothDevice) {
+            binding.status.text = "设备已连接"
+        }
+
+        override fun onDeviceFailedToConnect(device: BluetoothDevice, reason: Int) {
+            binding.status.text = "无法连接设备 - $reason"
+            this@DeviceManagerActivity.device = null
+        }
+
+        override fun onDeviceReady(device: BluetoothDevice) {
+            binding.status.text = "设备已准备好"
+
+            this@DeviceManagerActivity.device = device
+            makeMainPageVisible(View.VISIBLE)
+            updateDeviceInfo()
+        }
+
+        override fun onDeviceDisconnecting(device: BluetoothDevice) {
+            binding.status.text = "连接正在断开..."
+
+            this@DeviceManagerActivity.device = null
+            makeMainPageVisible(View.INVISIBLE)
+        }
+
+        override fun onDeviceDisconnected(device: BluetoothDevice, reason: Int) {
+            binding.status.text = "连接已断开"
+
+            this@DeviceManagerActivity.device = null
+            makeMainPageVisible(View.INVISIBLE)
+        }
+
+    }
+}

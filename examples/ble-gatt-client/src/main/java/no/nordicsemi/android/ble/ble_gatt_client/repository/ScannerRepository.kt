@@ -8,6 +8,8 @@ import android.content.Context
 import android.os.ParcelUuid
 import kotlinx.coroutines.suspendCancellableCoroutine
 import spec.NedServiceProfile.NED_DATA_SERVICE_UUID
+import spec.NedServiceProfile.manufacturerData
+import java.nio.ByteBuffer
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -21,39 +23,20 @@ class ScannerRepository  constructor(
             ?: throw NullPointerException("Bluetooth not initialized")
     }
 
-    /**
-     * Starts scanning for an advertising server.
-     * Returns the first found device.
-     */
-    suspend fun searchForServer(): BluetoothDevice = suspendCancellableCoroutine { continuation ->
-
-        val callback = object : ScanCallback() {
-            override fun onScanResult(callbackType: Int, result: ScanResult?) {
-                result
-                    ?.let {
-                        if (continuation.isActive) {
-                            continuation.resume(it.device)
-                        }
-                    }
-                    .also { bluetoothLeScanner.stopScan(this) }
-            }
-
-            override fun onScanFailed(errorCode: Int) {
-                continuation.resumeWithException(ScanningException(errorCode))
-            }
-        }
-        continuation.invokeOnCancellation {
-            bluetoothLeScanner.stopScan(callback)
-        }
-
+    fun startScan(callback: ScanCallback
+    ) {
         val scanSettings = ScanSettings.Builder()
             .setReportDelay(0) // Set to 0 to be notified of scan results immediately.
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
 
+        val manufacturerDataMask = ByteArray(14)
+
         val scanFilters = listOf(
             ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(NED_DATA_SERVICE_UUID))
+//                .setManufacturerData(0x5253, manufacturerData)
+                .setManufacturerData(0x5352, manufacturerData, manufacturerDataMask)
+//                .setServiceUuid(ParcelUuid(NED_DATA_SERVICE_UUID))
                 .build()
         )
 
@@ -64,4 +47,7 @@ class ScannerRepository  constructor(
         )
     }
 
+    fun stopScan(callback: ScanCallback) {
+        bluetoothLeScanner.stopScan(callback)
+    }
 }

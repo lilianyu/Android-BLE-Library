@@ -34,13 +34,11 @@ import android.content.IntentFilter
 import android.os.*
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.elvishew.xlog.XLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.launch
-import no.nordicsemi.android.ble.BleManager
-import no.nordicsemi.android.ble.ble_gatt_client.repository.ScannerRepository
-import spec.NedServiceProfile
 import no.nordicsemi.android.ble.observer.ConnectionObserver
 
 
@@ -65,19 +63,31 @@ import no.nordicsemi.android.ble.observer.ConnectionObserver
  */
 class GattService : Service() {
 
+    /*
+     * Manages the entire GATT service, declaring the services and characteristics on offer
+     */
+    companion object {
+        /**
+         * A binding action to return a binding that can be used in relation to the service's data
+         */
+        const val DATA_PLANE_ACTION = "data-plane"
+
+        private const val TAG = "gatt-serice"
+    }
+
     private val defaultScope = CoroutineScope(Dispatchers.Default)
 
     private lateinit var bluetoothObserver: BroadcastReceiver
 
     private var statusChangedChannel: SendChannel<String>? = null
-    private var responseChannel: SendChannel<ByteArray>? = null
-
 
     private var deviceListener: ((BluetoothDevice?) -> Unit)? = null
 
-    private val clientManagers = mutableMapOf<String, ClientManager>()
+//    private val clientManagers = mutableMapOf<String, ClientManager>()
 
-    private lateinit var scannerRepo: ScannerRepository
+    private val nedClient = NedClient(this)
+
+//    private lateinit var scannerRepo: ScannerRepository
 
 
     override fun onCreate() {
@@ -126,8 +136,8 @@ class GattService : Service() {
                                 intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
                         Log.d(TAG, "Bond state changed for device ${device?.address}: ${device?.bondState}")
                         when (device?.bondState) {
-                            BluetoothDevice.BOND_BONDED -> addDevice(device)
-                            BluetoothDevice.BOND_NONE -> removeDevice(device)
+                            BluetoothDevice.BOND_BONDED -> nedClient.addDevice(device)
+                            BluetoothDevice.BOND_NONE -> nedClient.removeDevice(device)
                         }
                     }
                 }
@@ -155,7 +165,6 @@ class GattService : Service() {
             when (intent?.action) {
                 DATA_PLANE_ACTION -> {
                     statusChangedChannel = null
-                    responseChannel = null
                     deviceListener = null
                     true
                 }
@@ -166,9 +175,8 @@ class GattService : Service() {
      * A binding to be used to interact with data of the service
      */
     inner class DataPlane : Binder() {
-        fun setChannel(statusChannel: SendChannel<String>, respChannel: SendChannel<ByteArray>) {
+        fun setChannel(statusChannel: SendChannel<String>) {
             statusChangedChannel = statusChannel
-            responseChannel = respChannel
         }
 
         fun setOnDevicesChangeListener(listener: (BluetoothDevice?) -> Unit) {
@@ -176,9 +184,7 @@ class GattService : Service() {
         }
 
         fun connectDevice(device: BluetoothDevice, connectionObserver: ConnectionObserver) {
-            val clientManager = clientManagers[device.address]
-            clientManager?.connect(device)?.useAutoConnect(true)?.enqueue()
-            clientManager?.connectionObserver = connectionObserver
+            nedClient.connectDevice(device, connectionObserver)
         }
 
         fun enableServices() {
@@ -189,9 +195,29 @@ class GattService : Service() {
             }
         }
 
-        fun write(device: BluetoothDevice, data: ByteArray) {
-            val clientManager = clientManagers[device.address]
-            clientManager?.write(data)
+        fun getDeviceInfo(device: BluetoothDevice): NedRequest? {
+            nedClient.bleDevices[device.address]?.let { bleDevice ->
+
+                return NedRequest.nedDeviceInfoRequest().setRequestHandler(bleDevice)
+            }
+
+            return null
+        }
+
+        fun getPlainData(device: BluetoothDevice): NedRequest?  {
+            nedClient.bleDevices[device.address]?.let { bleDevice ->
+                return NedRequest.nedPlainDataRequest().setRequestHandler(bleDevice)
+            }
+
+            return null
+        }
+
+        fun upgradePackage(device: BluetoothDevice, pkg: ByteArray, newVersion:Int): NedRequest?  {
+            nedClient.bleDevices[device.address]?.let { bleDevice ->
+                return NedRequest.nedUpgradeRequest(pkg, newVersion).setRequestHandler(bleDevice)
+            }
+
+            return null
         }
     }
 
@@ -201,15 +227,15 @@ class GattService : Service() {
         if (bluetoothManager.adapter?.isEnabled == true) {
             Log.i(TAG, "Enabling BLE services")
 
-            if (clientManagers.isEmpty()) {
-                defaultScope.launch {
-                    scannerRepo = ScannerRepository(this@GattService, bluetoothManager.adapter)
-                    statusChangedChannel?.send("正在扫描设备...")
-                    val device = scannerRepo.searchForServer()
-                    addDevice(device)
-                    deviceListener?.invoke(device)
-                }
-            }
+//            if (clientManagers.isEmpty()) {
+//                defaultScope.launch {
+//                    scannerRepo = ScannerRepository(this@GattService, bluetoothManager.adapter)
+//                    statusChangedChannel?.send("正在扫描设备...")
+//                    val device = scannerRepo.searchForServer()
+//                    addDevice(device)
+//                    deviceListener?.invoke(device)
+//                }
+//            }
         } else {
             defaultScope.launch {
                 statusChangedChannel?.send("请打开蓝牙开关...")
@@ -219,109 +245,8 @@ class GattService : Service() {
     }
 
     private fun disableBleServices() {
-        clientManagers.values.forEach { clientManager ->
-            clientManager.close()
-        }
-        clientManagers.clear()
+        nedClient.close()
 
         deviceListener?.invoke(null)
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun addDevice(device: BluetoothDevice) {
-        if (!clientManagers.containsKey(device.address)) {
-            val clientManager = ClientManager()
-            clientManagers[device.address] = clientManager
-        }
-    }
-
-    private fun removeDevice(device: BluetoothDevice) {
-        clientManagers.remove(device.address)?.close()
-    }
-
-    /*
-     * Manages the entire GATT service, declaring the services and characteristics on offer
-     */
-    companion object {
-        /**
-         * A binding action to return a binding that can be used in relation to the service's data
-         */
-        const val DATA_PLANE_ACTION = "data-plane"
-
-        private const val TAG = "gatt-serice"
-    }
-
-    private inner class ClientManager : BleManager(this@GattService) {
-        private var eventCharacteristic: BluetoothGattCharacteristic? = null
-        private var dataCharacteristic: BluetoothGattCharacteristic? = null
-        override fun getGattCallback(): BleManagerGattCallback = GattCallback()
-
-        override fun log(priority: Int, message: String) {
-            if (BuildConfig.DEBUG || priority == Log.ERROR) {
-                Log.println(priority, TAG, message)
-            }
-        }
-
-        fun write(data: ByteArray) {
-            writeCharacteristic(dataCharacteristic, data, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
-                .split()
-                .enqueue()
-        }
-
-        private inner class GattCallback : BleManagerGattCallback() {
-            override fun isRequiredServiceSupported(gatt: BluetoothGatt): Boolean {
-                val service = gatt.getService(NedServiceProfile.NED_EVENT_SERVICE_UUID)
-                eventCharacteristic =
-                        service?.getCharacteristic(NedServiceProfile.NED_EVENT_CHARACTERISTIC_UUID)
-                val eventCharacteristicProperties = eventCharacteristic?.properties ?: 0
-
-                val dataService = gatt.getService(NedServiceProfile.NED_DATA_SERVICE_UUID)
-                dataCharacteristic =
-                    dataService?.getCharacteristic(NedServiceProfile.NED_DATA_CHARACTERISTIC_UUID)
-                val dataCharacteristicProperties = dataCharacteristic?.properties ?: 0
-
-                return (eventCharacteristicProperties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) &&
-                        (dataCharacteristicProperties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0)
-            }
-
-            override fun initialize() {
-                var mtu = 512
-                requestMtu(mtu)
-                    .with { bluetoothDevice: BluetoothDevice, i: Int ->
-                        mtu = i
-                    }
-                    .enqueue()
-
-                setNotificationCallback(eventCharacteristic)
-                    .merge {
-                            output, lastPacket, index ->
-                        output.write(lastPacket)
-                        lastPacket?.size != mtu
-                    }
-                    .with { _, data ->
-                        if (data.value != null) {
-                            defaultScope.launch {
-                                responseChannel?.send(data.value!!)
-                            }
-                        }
-                }
-
-                beginAtomicRequestQueue()
-                        .add(enableNotifications(eventCharacteristic)
-                                .fail { _: BluetoothDevice?, status: Int ->
-                                    log(Log.ERROR, "Could not subscribe: $status")
-                                    disconnect().enqueue()
-                                }
-                        )
-                        .done {
-                            log(Log.INFO, "Target initialized")
-                        }
-                        .enqueue()
-            }
-
-            override fun onServicesInvalidated() {
-                eventCharacteristic = null
-            }
-        }
     }
 }

@@ -6,14 +6,14 @@ object MockNedResponse {
 
     fun respPacketForUpgradeInfo(): ByteArray {
         val reserved:Short = 0
-        val payloadSize: Int = 2
+        val payloadSize = 2
         val payload = ByteArray(payloadSize).apply {
                 ByteBuffer.wrap(this)
                     .putShort(reserved)
         }
 
         return NedPacket(NedPacket.NED_RESP_UPGRADE)
-            .packet(payload)
+            .load(payload)
     }
 
     fun respPacketForDeviceInfo(): ByteArray {
@@ -28,12 +28,12 @@ object MockNedResponse {
         }
 
         return NedPacket(NedPacket.NED_RESP_GET_DEVICE_INFO)
-            .packet(payload)
+            .load(payload)
     }
 
-    fun respPacketForUpgradePackage(): ByteArray {
+    fun respPacketForUpgradePackage(req:NedPacket): ByteArray {
         val payloadSize: Int = 2
-        val packetStatus = 0x00u
+        val packetStatus = if (req.packet?.size==521) 0u else 2u
         val reserved = 0x00u
         val payload = ByteArray(payloadSize).apply {
             ByteBuffer.wrap(this)
@@ -42,11 +42,11 @@ object MockNedResponse {
         }
 
         return NedPacket(NedPacket.NED_RESP_SEND_UPGRADE_PACKAGE)
-            .packet(payload)
+            .load(payload)
     }
 
     fun respPacketForPlainData(): ByteArray {
-        val payloadSize: Int = 5
+        val payloadSize = 5
         val brand = 0xA1u
         val plainData = 0x00FFA0B5u
         val payload = ByteArray(payloadSize).apply {
@@ -56,6 +56,6 @@ object MockNedResponse {
         }
 
         return NedPacket(NedPacket.NED_RESP_GET_PLAIN_DATA)
-            .packet(payload)
+            .load(payload)
     }
 }

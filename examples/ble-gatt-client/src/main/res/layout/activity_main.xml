@@ -1,29 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    tools:context=".MainActivity">
+    android:layout_height="match_parent">
 
-    <TextView
-        android:id="@+id/textViewGattCharacteristicValue"
+    <LinearLayout
+        android:id="@+id/scan_devices"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:maxLines="4"
-        android:lines="4"
-        android:accessibilityLiveRegion="none"
-        android:textAlignment="center"
-        android:text="@string/pair_the_ble_gatt_server_via_settings"
-        android:layout_weight="0"/>
+        android:layout_height="match_parent"
+        android:background="@color/colorBackground"
+        android:orientation="vertical">
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/bonded_device"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        app:layoutManager="LinearLayoutManager"
-        android:orientation="vertical"
-        android:layout_weight="1"/>
+        <com.guo.duoduo.library.RadarScanView
+            android:id="@+id/scan_view"
+            android:layout_width="match_parent"
+            android:layout_height="300dp"
+            android:layout_marginTop="60dp" />
 
-</LinearLayout>
+        <Button
+            android:id="@+id/scan_status"
+            android:layout_width="200dp"
+            android:layout_height="wrap_content"
+            android:accessibilityLiveRegion="none"
+            android:layout_gravity="center"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:text="正在扫描设备..."
+            android:textColor="#000000"
+            android:textSize="24sp" />
+
+    </LinearLayout>
+
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/swipe_refresh"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:orientation="vertical"
+                android:background="@color/colorBackground"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <TextView
+                    android:id="@+id/textViewGattCharacteristicValue"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:accessibilityLiveRegion="none"
+                    android:text="设备列表"
+                    android:textColor="#000000"
+                    android:textSize="14sp"
+                    android:paddingLeft="16dp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="2dp"/>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/bonded_device"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    app:layoutManager="LinearLayoutManager"
+                    android:orientation="vertical"
+                    android:background="@color/colorBackground"
+                    android:layout_weight="1"/>
+            </LinearLayout>
+
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+

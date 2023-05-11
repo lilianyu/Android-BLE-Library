@@ -320,25 +320,46 @@ class GattService : Service() {
                 }
 
                 override fun initialize() {
-                    var length = 0
+                    var totalLength = 0
+                    var numReceived = 0
 
                     setWriteCallback(dataCharacteristic)
                         .merge { output, lastPacket, index ->
-                            if (lastPacket == null)
-                                return@merge false
 
-                            if (index == 0) {
-                                length = NedPacket.parseLength(lastPacket)
+                            lastPacket?.let {
+                                output.write(lastPacket)
+
+                                if (index == 0) {
+                                    totalLength = 0
+                                    numReceived = lastPacket.size
+                                } else {
+                                    numReceived += lastPacket.size
+                                }
+
+                                //还未解析长度
+                                if (numReceived>=4 && totalLength==0) {
+                                    totalLength = NedPacket.parseLength(output.toByteArray())
+                                }
                             }
 
-                            output.write(lastPacket)
-                            return@merge output.size() == length
+                            if (totalLength==0) false else numReceived >= totalLength
+
                         }
-                        .with { device, data ->
-                            if (data.value != null) {
-                                val packet = NedPacket.parsePacket(data.value!!)
+                        .with { _, data ->
+                            data.value?.let {
+                                val packet = NedPacket.parsePacket(it)
                                 val resp = NedHandler.handle(packet!!)
-                                sendNotificationForEventCharacteristic(resp!!)
+
+//                                sendNotificationForEventCharacteristic(resp!!)
+                                sendNotificationForEventCharacteristic(ByteArray(1){
+                                    0xAA.toByte()
+                                })
+
+                                val sliceArray = resp!!.sliceArray(1 until resp!!.size)
+
+                                sendNotificationForEventCharacteristic(sliceArray)
+
+
                             }
                         }
                 }

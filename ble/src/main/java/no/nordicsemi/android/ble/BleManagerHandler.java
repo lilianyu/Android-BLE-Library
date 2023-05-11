@@ -2528,7 +2528,6 @@ abstract class BleManagerHandler extends RequestHandler {
 			nextRequest(true);
 		}
 
-
 		@Override
 		public void onCharacteristicChanged(final BluetoothGatt gatt,
 											final BluetoothGattCharacteristic characteristic) {

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">新能源汽车检测仪</string>
+    <string name="app_name">泰科检测</string>
     <string name="gatt_service_name">BLE Gatt Service</string>
     <string name="gatt_service_description">A background BLE GATT service</string>
     <string name="gatt_service_running_notification">\"Managing BLE GATT service\"</string>

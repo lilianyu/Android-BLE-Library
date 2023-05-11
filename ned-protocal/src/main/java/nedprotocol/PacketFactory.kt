@@ -3,7 +3,7 @@ package nedprotocol
 import java.nio.ByteBuffer
 
 object PacketFactory {
-    fun packetForUpgradeInfo(packageSize:Int, versionCode:Int, md5:ByteArray): ByteArray {
+    fun packetForUpgradeInfo(packageSize:Int, versionCode:Int, md5:ByteArray): NedPacket {
         val reserved:Short = 0
         val payloadSize: Int = 4 + 4 + 2 + md5.size
         val payload = ByteArray(payloadSize).apply {
@@ -14,16 +14,18 @@ object PacketFactory {
                 .putShort(reserved)
         }
 
-        return NedPacket(NedPacket.NED_REQ_UPGRADE)
-                .packet(payload)
+        return NedPacket(NedPacket.NED_REQ_UPGRADE).apply {
+            load(payload)
+        }
     }
 
-    fun packetForPackage(payload:ByteArray, index:UShort): ByteArray {
-        return NedPacket(NedPacket.NED_REQ_SEND_UPGRADE_PACKAGE)
-            .packet(payload, index)
+    fun packetForPackage(payload:ByteArray, index:UShort): NedPacket {
+        return NedPacket(NedPacket.NED_REQ_SEND_UPGRADE_PACKAGE).apply {
+            load(payload, index)
+        }
     }
 
-    fun packetForDeviceInfo(): ByteArray {
+    fun packetForDeviceInfo(): NedPacket {
         val reserved:Short = 0
         val payloadSize = 2
         val payload = ByteArray(payloadSize).apply {
@@ -31,11 +33,12 @@ object PacketFactory {
                 .putShort(reserved)
         }
 
-        return NedPacket(NedPacket.NED_REQ_GET_DEVICE_INFO)
-            .packet(payload)
+        return NedPacket(NedPacket.NED_REQ_GET_DEVICE_INFO).apply {
+            load(payload)
+        }
     }
 
-    fun packetForPlainData(): ByteArray {
+    fun packetForPlainData(): NedPacket {
         val reserved:Short = 0
         val payloadSize = 2
         val payload = ByteArray(payloadSize).apply {
@@ -43,8 +46,9 @@ object PacketFactory {
                 .putShort(reserved)
         }
 
-        return NedPacket(NedPacket.NED_REQ_GET_PLAIN_DATA)
-            .packet(payload)
+        return NedPacket(NedPacket.NED_REQ_GET_PLAIN_DATA).apply {
+            load(payload)
+        }
     }
 
 
