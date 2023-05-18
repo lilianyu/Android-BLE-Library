@@ -395,16 +395,6 @@ class MainActivity : AppCompatActivity() {
             else {
                 gattServiceData = service as GattService.DataPlane
                 XLog.i("onServiceConnected, gattServiceData = $gattServiceData")
-
-//                if (device != null) {
-//                    gattServiceData?.connectDevice(device!!, DeviceConnectionCallback())
-//                }
-
-//                gattServiceData?.setOnDevicesChangeListener {
-//                    if (it != null) {
-//                        gattServiceData?.connectDevice(it!!, DeviceConnectionCallback())
-//                    }
-//                }
             }
 
             gattServiceData?.enableServices()

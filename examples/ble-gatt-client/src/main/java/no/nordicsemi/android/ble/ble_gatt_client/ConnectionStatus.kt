@@ -1,11 +1,11 @@
 package no.nordicsemi.android.ble.ble_gatt_client
 
-enum class ConnectionStatus(val status: Int, var message: String) {
-    NotStarted(-1, "未开始"),
-    Connecting(0, "连接中..."),
-    Connected(1, "已连接"),
-    FailedToConnect(2, "连接失败"),
-    Ready(3, "准备好"),
-    Disconnecting(4, "断开中..."),
-    Disconnected(5, "已断开")
+enum class ConnectionStatus(val status: Int, var imageResource: Int) {
+    NotStarted(-1, R.drawable.cs_notstarted),
+    Connecting(0, R.drawable.cs_connecting),
+    Connected(1, R.drawable.cs_connected),
+    FailedToConnect(2, R.drawable.cs_failed),
+    Ready(3, R.drawable.cs_ready),
+    Disconnecting(4, R.drawable.cs_disconnecting),
+    Disconnected(5, R.drawable.cs_disconnected)
 }

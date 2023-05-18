@@ -6,7 +6,6 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import no.nordicsemi.android.ble.ble_gatt_client.databinding.DeviceItemNewBinding
-import java.nio.ByteBuffer
 
 class DeviceAdapter (
 ): RecyclerView.Adapter<DeviceAdapter.DeviceViewHolder> () {
@@ -29,9 +28,16 @@ class DeviceAdapter (
     override fun onBindViewHolder(holder: DeviceViewHolder, position: Int) {
         holder.binding.deviceName.text = if (deviceList[position].device.name.isNullOrEmpty()) "未命名设备" else deviceList[position].device.name
         holder.binding.macAddressValue.text = deviceList[position].device.address
-        holder.binding.btnConnect.text = deviceList[position].connectStatus.message
+        holder.binding.deviceStatus.setImageResource(deviceList[position].connectStatus.imageResource)
+
         holder.binding.hardwareVersionValue.text = deviceList[position].hardwareVersionReadable
         holder.binding.softwareVersionValue.text = deviceList[position].softwareVersionReadable
+
+        if (deviceList[position].connectStatus == ConnectionStatus.Ready) {
+            holder.binding.btnConnect.text = "断开连接"
+        } else {
+            holder.binding.btnConnect.text = "建立连接"
+        }
 
         holder.binding.btnConnect.setOnClickListener {
             connectListener?.invoke(deviceList[position].device)

@@ -17,6 +17,10 @@ class NedClient(val context:Context) {
         bleDevice?.connectionObserver = connectionObserver
     }
 
+    fun disconnectDevice(device: BluetoothDevice) {
+
+    }
+
     @SuppressLint("MissingPermission")
     fun addDevice(device: BluetoothDevice) {
         if (!bleDevices.containsKey(device.address)) {
