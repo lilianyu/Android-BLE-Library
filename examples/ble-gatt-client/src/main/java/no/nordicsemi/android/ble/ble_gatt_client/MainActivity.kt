@@ -98,8 +98,10 @@ class MainActivity : AppCompatActivity() {
 //            intent.putExtra("device", it)
 //            startActivity(intent)
 
-            if (it != null) {
-                gattServiceData?.connectDevice(it, DeviceConnectionCallback())
+            if (it.connectStatus == ConnectionStatus.Ready) {
+                gattServiceData?.disconnectDevice(it.device)
+            } else {
+                gattServiceData?.connectDevice(it.device, DeviceConnectionCallback())
             }
         }
 
@@ -439,43 +441,6 @@ class MainActivity : AppCompatActivity() {
             adapter.notifyDataSetChanged()
 
             XLog.i("gattServiceData = $gattServiceData")
-
-//            gattServiceData?.getDeviceInfo(device)
-//                ?.apply {
-//
-//                    fail { failInfo: FailInfo, nedPacket: NedPacket? ->
-//                        XLog.i("Fail ${failInfo.message}")
-//
-//                        mainScope.launch {
-//                            var errorMessage = "${failInfo.message}"
-//                            failInfo.extra?.let {extra ->
-//                                errorMessage = "${errorMessage}, $extra"
-//                            }
-//                            nedPacket?.let { nedPacket ->
-//                                errorMessage = "${errorMessage} - ${nedPacket.packet?.map {byte ->  "%02X".format(byte) }.toString()}"
-//                            }
-//
-////                            binding.respData.text = errorMessage
-//                        }
-//                    }
-//                    done {
-//                        mainScope.launch {
-//                            deviceItem?.hardwareVersion = it?.payload?.let { payload ->
-//                                XLog.i(payload)
-//                                ByteBuffer.wrap(payload).getInt(0).toUInt()
-//                            }
-//
-//                            deviceItem?.softwareVersion = it?.payload?.let { payload ->
-//                                XLog.i(payload)
-//                                ByteBuffer.wrap(payload).getInt(4).toUInt()
-//                            }
-//
-//                            adapter.notifyDataSetChanged()
-//
-////                            binding.respData.text = hexBytes.toString()
-//                        }
-//                    }
-//                }?.enqueue()
         }
 
         override fun onDeviceDisconnecting(device: BluetoothDevice) {

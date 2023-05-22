@@ -10,7 +10,7 @@ import no.nordicsemi.android.ble.ble_gatt_client.databinding.DeviceItemNewBindin
 class DeviceAdapter (
 ): RecyclerView.Adapter<DeviceAdapter.DeviceViewHolder> () {
 
-    var connectListener:((BluetoothDevice) -> Unit)? = null
+    var connectListener:((DeviceAdapterItem) -> Unit)? = null
     var deviceInfoListener:((BluetoothDevice) -> Unit)? = null
     var deviceList = mutableListOf<DeviceAdapterItem>()
         set(value) {
@@ -40,7 +40,7 @@ class DeviceAdapter (
         }
 
         holder.binding.btnConnect.setOnClickListener {
-            connectListener?.invoke(deviceList[position].device)
+            connectListener?.invoke(deviceList[position])
         }
 
         holder.binding.checkToUpgrade.setOnClickListener {

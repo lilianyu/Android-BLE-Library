@@ -18,7 +18,8 @@ class NedClient(val context:Context) {
     }
 
     fun disconnectDevice(device: BluetoothDevice) {
-
+        val bleDevice = bleDevices[device.address]
+        bleDevice?.disconnect()?.enqueue()
     }
 
     @SuppressLint("MissingPermission")

@@ -187,6 +187,10 @@ class GattService : Service() {
             nedClient.connectDevice(device, connectionObserver)
         }
 
+        fun disconnectDevice(device: BluetoothDevice) {
+            nedClient.disconnectDevice(device)
+        }
+
         fun enableServices() {
             // Startup BLE if we have it
             val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
