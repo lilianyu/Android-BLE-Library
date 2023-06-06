@@ -10,12 +10,12 @@ import java.util.concurrent.TimeUnit
  */
 object RetrofitClient {
 
-    private const val BASE_URL = "http://192.168.0.106:8080/"
+    private const val BASE_URL = "http://192.168.0.103:8081/"
 //    private const val BASE_URL = "http://10.112.115.84:8080/"
 //    private const val BASE_URL = "http://localhost:8080/"
 
     val okHttpClient = OkHttpClient.Builder()
-        .callTimeout(30, TimeUnit.SECONDS)
+        .callTimeout(30, TimeUnit.MINUTES)
         .build()
 
     val retrofit = Retrofit.Builder()

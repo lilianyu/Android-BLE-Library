@@ -1,6 +1,6 @@
 package no.nordicsemi.android.ble.ble_gatt_client.net
 
-import no.nordicsemi.android.ble.ble_gatt_client.entity.NewVersionCheckResult
+import no.nordicsemi.android.ble.ble_gatt_client.entity.PackageInfo
 import no.nordicsemi.android.ble.ble_gatt_client.entity.User
 import retrofit2.http.GET
 import retrofit2.http.Path
@@ -11,9 +11,9 @@ interface ApiService {
     @GET("evd/user/{id}")
     suspend fun getUserById(@Path("id") id: Long): ResultData<User>
 
-    @GET("evd/checkNewVersion")
-    suspend fun checkNewVersion(@Query("userId") userId: Long,
-                                @Query("productId") productId: Long,
+    @GET("checkNewVersion")
+    suspend fun checkNewVersion(@Query("userId") userId: Long?,
                                 @Query("macAddress") macAddress: String,
-                                @Query("versionCode") versionCode: Long): ResultData<NewVersionCheckResult>
+                                @Query("hwVersion") hwVersion: Long,
+                                @Query("swVersion") swVersion: Long): ResultData<PackageInfo>
 }

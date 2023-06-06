@@ -49,6 +49,7 @@ import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.*
+import kotlin.collections.ArrayList
 
 class MainActivity : AppCompatActivity() {
     private val REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS: Int = 1001
@@ -58,6 +59,8 @@ class MainActivity : AppCompatActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private val viewModel by viewModels<UserViewModel>()
+
+    private var scanPending = false;
 
     private var gattServiceConn: MainActivity.GattServiceConn? = null
 
@@ -72,10 +75,11 @@ class MainActivity : AppCompatActivity() {
                     item.device.address == it.device.address
                 }
 
+                binding.scanDevices.visibility = View.GONE
+                binding.swipeRefresh.visibility = View.VISIBLE
                 binding.swipeRefresh.isRefreshing = false
 
                 if (deviceItem == null) {
-
                     adapter.deviceList.add(DeviceAdapter.DeviceAdapterItem(it.device))
                     adapter.notifyDataSetChanged()
                 }
@@ -154,21 +158,13 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         binding.bondedDevice.adapter = adapter
 
-//        if (bluetoothManager.adapter?.bondedDevices?.toMutableList() != null) {
-//            adapter.deviceList = bluetoothManager.adapter?.bondedDevices?.toMutableList()!!
-//        }
-
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         val repository = ScannerRepository(this@MainActivity, bluetoothManager.adapter)
-
-        if (Build.VERSION.SDK_INT >= 23) {
-            // Marshmallow+ Permission APIs
-            stuffMarshMallow();
-        }
 
         binding.swipeRefresh.setOnRefreshListener {
             scanDevices()
@@ -182,9 +178,19 @@ class MainActivity : AppCompatActivity() {
         startService(Intent(this, GattService::class.java))
 
 //        viewModel.getUser(1)
+//        viewModel.checkNewVersion("alsdjaljdflajdlajfe", 0x22222, 0x3dddd3)
     }
 
     private fun scanDevices() {
+
+        val checkAllNecessaryPermissions = checkAllNecessaryPermissions()
+        //权限不够，申请权限
+        if (checkAllNecessaryPermissions.isNotEmpty()) {
+            stuffMarshMallow()
+            scanPending = true
+            return
+        }
+
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         val repository = ScannerRepository(this@MainActivity, bluetoothManager.adapter)
 
@@ -215,9 +221,10 @@ class MainActivity : AppCompatActivity() {
                 }
 
 
-            }, 5000)
+            }, 60000)
         }
     }
+
     override fun onStart() {
         super.onStart()
 
@@ -301,18 +308,19 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 // Check for ACCESS_FINE_LOCATION
-                if (perms[android.Manifest.permission.ACCESS_FINE_LOCATION] == PackageManager.PERMISSION_GRANTED) {
+                if (checkAllNecessaryPermissions().isEmpty()) {
                     // All Permissions Granted
-
-                    scanDevices()
+                    if (scanPending) {
+                        scanPending = false
+                        scanDevices()
+                    }
                 } else {
                     // Permission Denied
                     Toast.makeText(
                         this,
                         "One or More Permissions are DENIED Exiting App :(",
                         Toast.LENGTH_SHORT
-                    )
-                        .show()
+                    ).show()
                     finish()
                 }
             }
@@ -325,39 +333,36 @@ class MainActivity : AppCompatActivity() {
     private fun stuffMarshMallow() {
         val permissionsNeeded: MutableList<String> = ArrayList()
         val permissionsList: MutableList<String> = ArrayList()
-        if (!addPermission(
-                permissionsList,
-                android.Manifest.permission.ACCESS_FINE_LOCATION))
-            permissionsNeeded.add("Show Location")
 
-        if (!addPermission(
-                permissionsList,
-                android.Manifest.permission.WRITE_EXTERNAL_STORAGE))
-            permissionsNeeded.add("写权限")
-
+        for (permission in BTConstants.scanPermissions) {
+            if (!addPermission(
+                    permissionsList,
+                    permission)) {
+                BTConstants.permissionsRationals[permission]?.let {
+                    permissionsNeeded.add(
+                        it
+                    )
+                }
+            }
+        }
 
         if (permissionsList.size > 0) {
             if (permissionsNeeded.size > 0) {
-
                 // Need Rationale
                 var message = "App need access to " + permissionsNeeded[0]
-                for (i in 1 until permissionsNeeded.size) message =
-                    message + ", " + permissionsNeeded[i]
-                showMessageOKCancel(
-                    message
-                ) { dialog, which ->
-                    requestPermissions(
-                        permissionsList.toTypedArray(),
-                        REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS
-                    )
+                for (i in 1 until permissionsNeeded.size) {
+                    message = message + ", " + permissionsNeeded[i]
                 }
-                return
+
+                showMessageOKCancel(message) { dialog, which ->
+                    requestPermissions( permissionsList.toTypedArray(),
+                        REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS )
+                }
+            } else {
+                requestPermissions( permissionsList.toTypedArray(),
+                    REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS)
             }
-            requestPermissions(
-                permissionsList.toTypedArray(),
-                REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS
-            )
-            return
+
         }
     }
 
@@ -375,9 +380,22 @@ class MainActivity : AppCompatActivity() {
         if (checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
             permissionsList.add(permission)
             // Check for Rationale Option
-            if (!shouldShowRequestPermissionRationale(permission)) return false
+            if (!shouldShowRequestPermissionRationale(permission))
+                return false
         }
         return true
+    }
+
+    private fun checkAllNecessaryPermissions(): List<String> {
+        var unauthorizedPermissions: ArrayList<String> = ArrayList()
+
+        for (permission in BTConstants.scanPermissions) {
+            if (checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
+                unauthorizedPermissions.add(permission)
+            }
+        }
+
+        return unauthorizedPermissions
     }
 
     private inner class GattServiceConn : ServiceConnection {
