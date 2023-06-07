@@ -97,22 +97,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var adapter: DeviceAdapter = DeviceAdapter().apply {
-        connectListener = {
-//            var intent = Intent(this@MainActivity, DeviceManagerActivity::class.java)
-//            intent.putExtra("device", it)
-//            startActivity(intent)
-
-            if (it.connectStatus == ConnectionStatus.Ready) {
-                gattServiceData?.disconnectDevice(it.device)
+        connectListener = {item, cmd ->
+            if (cmd == DeviceAdapter.CMD_CONNECT ) {
+                gattServiceData?.connectDevice(item.device, DeviceConnectionCallback())
             } else {
-                gattServiceData?.connectDevice(it.device, DeviceConnectionCallback())
+                gattServiceData?.disconnectDevice(item.device)
             }
         }
 
         deviceInfoListener = {
-            gattServiceData?.getDeviceInfo(it)
+            gattServiceData?.getDeviceInfo(it.device)
                 ?.apply {
-
                     fail { failInfo: FailInfo, nedPacket: NedPacket? ->
                         XLog.i("Fail ${failInfo.message}")
 
@@ -131,7 +126,7 @@ class MainActivity : AppCompatActivity() {
                     done { nedPacket ->
                         mainScope.launch {
                             val deviceItem = deviceList.find { item ->
-                                item.device.address == it.address
+                                item.device.address == it.device.address
                             }
 
                             deviceItem?.hardwareVersion = nedPacket?.payload?.let { payload ->
@@ -150,6 +145,20 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }?.enqueue()
+        }
+
+        upgradeListener = {
+            if (it.connectStatus == ConnectionStatus.Ready) {
+                var intent = Intent(this@MainActivity, DeviceManagerActivity::class.java)
+                intent.putExtra("device", it.device)
+                startActivity(intent)
+            } else {
+                AlertDialog.Builder(this@MainActivity)
+                    .setMessage("请先连接设备再使用")
+                    .setPositiveButton("OK", null)
+                    .create()
+                    .show()
+            }
         }
     }
 

@@ -30,8 +30,6 @@ import java.util.*
 
 class DeviceManagerActivity: AppCompatActivity()  {
 
-    private val REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS: Int = 1001
-
     private val mainScope = CoroutineScope(Dispatchers.Main)
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -56,28 +54,16 @@ class DeviceManagerActivity: AppCompatActivity()  {
 
         device = intent.getParcelableExtra("device")
 
-        makeMainPageVisible(View.INVISIBLE)
+        updateDeviceInfo()
+        makeMainPageVisible(View.VISIBLE)
 
         configCommandListener()
-
-        binding.status.text="正在连接设备..."
-        mainScope.launch {
-            for (newValue in statusChangedChannel) { //block
-                mainHandler.run {
-                    binding.status.text = newValue
-
-                    if (newValue == "设备已准备好") {
-                        makeMainPageVisible(View.VISIBLE)
-                    }
-                }
-            }
-        }
 
         title = if (device?.name.isNullOrEmpty()) "未命名设备" else device?.name
 
         // Startup our Bluetooth GATT service explicitly so it continues to run even if
         // this activity is not in focus
-        startService(Intent(this, GattService::class.java))
+//        startService(Intent(this, GattService::class.java))
     }
 
     private fun updateResponse(nedPacket: NedPacket) {
@@ -87,7 +73,6 @@ class DeviceManagerActivity: AppCompatActivity()  {
                 NedPacket.NED_RESP_GET_DEVICE_INFO -> binding.respData.text = nedPacket.packet?.map { "%02X".format(it) }.toString()
                 NedPacket.NED_RESP_GET_PLAIN_DATA -> binding.respDataPlainData.text = nedPacket.packet?.map { "%02X".format(it) }.toString()
                 NedPacket.NED_RESP_SEND_UPGRADE_PACKAGE -> binding.respUpgradePackage.text = nedPacket.packet?.map { "%02X".format(it) }.toString()
-                else -> binding.status.text = "响应数据错误~~~"
             }
         }
     }
@@ -159,7 +144,7 @@ class DeviceManagerActivity: AppCompatActivity()  {
         if (device != null) {
             binding.deviceName.text = device?.name
             binding.macAddress.text = device?.address
-            binding.connectStatus.text = binding.status.text
+            binding.connectStatus.text = "准备好"
         }
     }
 
@@ -278,7 +263,6 @@ class DeviceManagerActivity: AppCompatActivity()  {
                     }
                 }?.enqueue()
             }
-
         }
 
         binding.reviewDataDeviceInfo.setOnClickListener {
@@ -328,60 +312,9 @@ class DeviceManagerActivity: AppCompatActivity()  {
                 gattServiceData = service as GattService.DataPlane
 
                 gattServiceData?.setChannel(statusChangedChannel)
-
-                if (device != null) {
-                    gattServiceData?.connectDevice(device!!, DeviceConnectionCallback())
-                }
-
-                gattServiceData?.setOnDevicesChangeListener {
-                    if (it != null) {
-                        gattServiceData?.connectDevice(it!!, DeviceConnectionCallback())
-                    }
-
-                }
             }
 
             gattServiceData?.enableServices()
         }
-    }
-
-
-    inner class DeviceConnectionCallback : ConnectionObserver {
-
-        override fun onDeviceConnecting(device: BluetoothDevice) {
-            binding.status.text = "正在连接设备..."
-        }
-
-        override fun onDeviceConnected(device: BluetoothDevice) {
-            binding.status.text = "设备已连接"
-        }
-
-        override fun onDeviceFailedToConnect(device: BluetoothDevice, reason: Int) {
-            binding.status.text = "无法连接设备 - $reason"
-            this@DeviceManagerActivity.device = null
-        }
-
-        override fun onDeviceReady(device: BluetoothDevice) {
-            binding.status.text = "设备已准备好"
-
-            this@DeviceManagerActivity.device = device
-            makeMainPageVisible(View.VISIBLE)
-            updateDeviceInfo()
-        }
-
-        override fun onDeviceDisconnecting(device: BluetoothDevice) {
-            binding.status.text = "连接正在断开..."
-
-            this@DeviceManagerActivity.device = null
-            makeMainPageVisible(View.INVISIBLE)
-        }
-
-        override fun onDeviceDisconnected(device: BluetoothDevice, reason: Int) {
-            binding.status.text = "连接已断开"
-
-            this@DeviceManagerActivity.device = null
-            makeMainPageVisible(View.INVISIBLE)
-        }
-
     }
 }

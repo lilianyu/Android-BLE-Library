@@ -10,8 +10,14 @@ import no.nordicsemi.android.ble.ble_gatt_client.databinding.DeviceItemNewBindin
 class DeviceAdapter (
 ): RecyclerView.Adapter<DeviceAdapter.DeviceViewHolder> () {
 
-    var connectListener:((DeviceAdapterItem) -> Unit)? = null
-    var deviceInfoListener:((BluetoothDevice) -> Unit)? = null
+    companion object {
+        val CMD_CONNECT = 0
+        val CMD_DISCONNECT = 1
+    }
+
+    var connectListener:((DeviceAdapterItem, Int) -> Unit)? = null
+    var deviceInfoListener:((DeviceAdapterItem) -> Unit)? = null
+    var upgradeListener:((DeviceAdapterItem) -> Unit)? = null
     var deviceList = mutableListOf<DeviceAdapterItem>()
         set(value) {
             field = value
@@ -33,18 +39,37 @@ class DeviceAdapter (
         holder.binding.hardwareVersionValue.text = deviceList[position].hardwareVersionReadable
         holder.binding.softwareVersionValue.text = deviceList[position].softwareVersionReadable
 
-        if (deviceList[position].connectStatus == ConnectionStatus.Ready) {
-            holder.binding.btnConnect.text = "断开连接"
+        if (deviceList[position].connectStatus == ConnectionStatus.NotStarted ||
+            deviceList[position].connectStatus == ConnectionStatus.FailedToConnect ||
+            deviceList[position].connectStatus == ConnectionStatus.Disconnected ) {
+
+            if (holder.binding.btnConnect.isEnabled) {
+                holder.binding.btnConnect.text = "建立连接"
+            }
         } else {
-            holder.binding.btnConnect.text = "建立连接"
+            holder.binding.btnConnect.text = "断开连接"
+            holder.binding.btnConnect.isEnabled = true
         }
 
         holder.binding.btnConnect.setOnClickListener {
-            connectListener?.invoke(deviceList[position])
+            if (deviceList[position].connectStatus == ConnectionStatus.NotStarted ||
+                deviceList[position].connectStatus == ConnectionStatus.FailedToConnect ||
+                deviceList[position].connectStatus == ConnectionStatus.Disconnected ) {
+
+                holder.binding.btnConnect.isEnabled = false
+                holder.binding.btnConnect.text = "连接中..."
+                connectListener?.invoke(deviceList[position], CMD_CONNECT)
+            } else {
+                connectListener?.invoke(deviceList[position], CMD_DISCONNECT)
+            }
         }
 
         holder.binding.checkToUpgrade.setOnClickListener {
-            deviceInfoListener?.invoke(deviceList[position].device)
+            deviceInfoListener?.invoke(deviceList[position])
+        }
+
+        holder.binding.btnUpgrade.setOnClickListener {
+            upgradeListener?.invoke(deviceList[position])
         }
     }
 

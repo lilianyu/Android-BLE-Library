@@ -12,6 +12,7 @@ object BTConstants {
 
     val scanPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
         listOf (
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
             android.Manifest.permission.BLUETOOTH_CONNECT,
             android.Manifest.permission.BLUETOOTH_SCAN)
     else listOf (android.Manifest.permission.ACCESS_FINE_LOCATION)
