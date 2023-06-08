@@ -16,8 +16,10 @@ class DeviceAdapter (
     }
 
     var connectListener:((DeviceAdapterItem, Int) -> Unit)? = null
-    var deviceInfoListener:((DeviceAdapterItem) -> Unit)? = null
+    var deviceInfoListener:((BluetoothDevice) -> Unit)? = null
     var upgradeListener:((DeviceAdapterItem) -> Unit)? = null
+    var checkNewVersion:((DeviceAdapterItem) -> Unit)? = null
+
     var deviceList = mutableListOf<DeviceAdapterItem>()
         set(value) {
             field = value
@@ -33,7 +35,7 @@ class DeviceAdapter (
     @SuppressLint("MissingPermission")
     override fun onBindViewHolder(holder: DeviceViewHolder, position: Int) {
         holder.binding.deviceName.text = if (deviceList[position].device.name.isNullOrEmpty()) "未命名设备" else deviceList[position].device.name
-        holder.binding.macAddressValue.text = deviceList[position].device.address
+        holder.binding.macAddressValue.text = deviceList[position].addressReadable
         holder.binding.deviceStatus.setImageResource(deviceList[position].connectStatus.imageResource)
 
         holder.binding.hardwareVersionValue.text = deviceList[position].hardwareVersionReadable
@@ -65,7 +67,7 @@ class DeviceAdapter (
         }
 
         holder.binding.checkToUpgrade.setOnClickListener {
-            deviceInfoListener?.invoke(deviceList[position])
+            checkNewVersion?.invoke(deviceList[position])
         }
 
         holder.binding.btnUpgrade.setOnClickListener {
@@ -84,6 +86,7 @@ class DeviceAdapter (
         var versionToUpgrade: UInt? = null
         var hardwareVersion: UInt? = null
         var softwareVersion: UInt? = null
+        var address: ByteArray? = null
 
         val hardwareVersionReadable: String
             get() = when (hardwareVersion) {
@@ -99,6 +102,13 @@ class DeviceAdapter (
                 else -> {
                     "${softwareVersion?.shr(24)?.toUByte()}.${softwareVersion?.shr(16)?.toUByte()}.${softwareVersion?.shr(8)?.toUByte()}.${softwareVersion?.toUByte()}"
                 }
+            }
+
+        val addressReadable: String
+            get() = when (address) {
+                null -> "未连接"
+                else -> String(address!!)
+
             }
 
     }

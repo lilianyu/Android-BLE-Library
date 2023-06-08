@@ -106,7 +106,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         deviceInfoListener = {
-            gattServiceData?.getDeviceInfo(it.device)
+            gattServiceData?.getDeviceInfo(it)
                 ?.apply {
                     fail { failInfo: FailInfo, nedPacket: NedPacket? ->
                         XLog.i("Fail ${failInfo.message}")
@@ -126,7 +126,7 @@ class MainActivity : AppCompatActivity() {
                     done { nedPacket ->
                         mainScope.launch {
                             val deviceItem = deviceList.find { item ->
-                                item.device.address == it.device.address
+                                item.device.address == it.address
                             }
 
                             deviceItem?.hardwareVersion = nedPacket?.payload?.let { payload ->
@@ -138,6 +138,8 @@ class MainActivity : AppCompatActivity() {
                                 XLog.i(payload)
                                 ByteBuffer.wrap(payload).getInt(4).toUInt()
                             }
+
+                            deviceItem?.address = nedPacket?.payload?.copyOfRange(8,24)
 
                             notifyDataSetChanged()
 
@@ -160,6 +162,17 @@ class MainActivity : AppCompatActivity() {
                     .show()
             }
         }
+
+        checkNewVersion = { item ->
+            item.hardwareVersion?.let { hwVersion ->
+                item.softwareVersion?.let { swVersion ->
+                    viewModel.checkNewVersion(item.addressReadable,
+                        hwVersion.toLong(), swVersion.toLong())
+                }
+            }
+
+        }
+
     }
 
     private lateinit var binding: ActivityMainBinding
@@ -187,7 +200,6 @@ class MainActivity : AppCompatActivity() {
         startService(Intent(this, GattService::class.java))
 
 //        viewModel.getUser(1)
-//        viewModel.checkNewVersion("alsdjaljdflajdlajfe", 0x22222, 0x3dddd3)
     }
 
     private fun scanDevices() {
@@ -466,6 +478,8 @@ class MainActivity : AppCompatActivity() {
 
             deviceItem?.connectStatus = ConnectionStatus.Ready
             adapter.notifyDataSetChanged()
+
+            adapter.deviceInfoListener?.invoke(device)
 
             XLog.i("gattServiceData = $gattServiceData")
         }
