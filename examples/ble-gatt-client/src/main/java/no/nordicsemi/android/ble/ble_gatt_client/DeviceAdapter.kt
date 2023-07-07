@@ -107,7 +107,7 @@ class DeviceAdapter (
         val addressReadable: String
             get() = when (address) {
                 null -> "未连接"
-                else -> String(address!!)
+                else -> address!!?.map {byte ->  "%02X".format(byte) }!!.joinToString(".")
 
             }
 

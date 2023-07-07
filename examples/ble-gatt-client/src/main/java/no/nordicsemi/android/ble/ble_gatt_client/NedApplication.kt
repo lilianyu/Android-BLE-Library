@@ -13,6 +13,7 @@ import com.elvishew.xlog.printer.file.backup.NeverBackupStrategy
 import com.elvishew.xlog.printer.file.clean.FileLastModifiedCleanStrategy
 import com.elvishew.xlog.printer.file.naming.DateFileNameGenerator
 import com.elvishew.xlog.printer.file.writer.SimpleWriter
+import com.liulishuo.filedownloader.FileDownloader
 import java.io.*
 
 
@@ -26,6 +27,9 @@ class NedApplication: Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        FileDownloader.setup(applicationContext)
+
 
         val androidPrinter: Printer =
             AndroidPrinter(true) // Printer that print the log using android.util.Log

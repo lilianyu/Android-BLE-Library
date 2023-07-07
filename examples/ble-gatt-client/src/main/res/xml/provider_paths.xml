@@ -7,8 +7,8 @@
             name="external_files"
             path="." />
     <cache-path
-            name="cache"
-            path="." />
+            name="packages"
+            path="packages" />
     <external-cache-path
             name="external_cache"
             path="." />

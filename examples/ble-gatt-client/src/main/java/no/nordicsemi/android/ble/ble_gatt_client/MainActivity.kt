@@ -31,6 +31,7 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.*
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.*
 import android.view.Menu
 import android.view.MenuItem
@@ -40,16 +41,20 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import com.elvishew.xlog.XLog
+import com.liulishuo.filedownloader.BaseDownloadTask
+import com.liulishuo.filedownloader.FileDownloadListener
+import com.liulishuo.filedownloader.FileDownloader
 import kotlinx.coroutines.*
 import nedprotocol.NedPacket
 import no.nordicsemi.android.ble.ble_gatt_client.databinding.ActivityMainBinding
 import no.nordicsemi.android.ble.ble_gatt_client.repository.ScannerRepository
 import no.nordicsemi.android.ble.observer.ConnectionObserver
+import retrofit2.http.Url
 import java.io.File
 import java.io.IOException
+import java.net.URL
 import java.nio.ByteBuffer
 import java.util.*
-import kotlin.collections.ArrayList
 
 class MainActivity : AppCompatActivity() {
     private val REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS: Int = 1001
@@ -172,7 +177,6 @@ class MainActivity : AppCompatActivity() {
             }
 
         }
-
     }
 
     private lateinit var binding: ActivityMainBinding
@@ -200,6 +204,70 @@ class MainActivity : AppCompatActivity() {
         startService(Intent(this, GattService::class.java))
 
 //        viewModel.getUser(1)
+
+        viewModel.packageInfo.observe(this) {
+            if (it == null) {
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("出错了")
+                    .setMessage("版本升级出错：${viewModel.newVersionError}，请联系客服")
+                    .setPositiveButton("OK", null)
+                    .create()
+                    .show()
+
+                return@observe
+            }
+
+            val path = Uri.parse(it.url).lastPathSegment
+
+            val cacheFile = File(cacheDir, "packages/$path")
+
+            val uri: Uri = FileProvider.getUriForFile(this, applicationContext.packageName + ".FileProvider", cacheFile)
+
+            FileDownloader.getImpl().create(it.url)
+                .setPath(cacheFile.absolutePath)
+                .setListener (object : FileDownloadListener() {
+                    override fun pending(
+                        task: BaseDownloadTask?,
+                        soFarBytes: Int,
+                        totalBytes: Int
+                    ) {
+                        XLog.i("pending")
+                    }
+
+                    override fun progress(
+                        task: BaseDownloadTask?,
+                        soFarBytes: Int,
+                        totalBytes: Int
+                    ) {
+                        XLog.i("progress")
+                    }
+
+                    override fun completed(task: BaseDownloadTask?) {
+                        XLog.i("completed")
+
+                    }
+
+                    override fun paused(task: BaseDownloadTask?, soFarBytes: Int, totalBytes: Int) {
+                        XLog.i("paused")
+                    }
+
+                    override fun error(task: BaseDownloadTask?, e: Throwable?) {
+                        XLog.i("error")
+                    }
+
+                    override fun warn(task: BaseDownloadTask?) {
+                        XLog.i("warn")
+                    }
+
+                }).start()
+
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle("版本升级")
+                .setMessage("有新的版本可用：${it.versionCode}")
+                .setPositiveButton("OK", null)
+                .create()
+                .show()
+        }
     }
 
     private fun scanDevices() {
@@ -477,11 +545,13 @@ class MainActivity : AppCompatActivity() {
             }
 
             deviceItem?.connectStatus = ConnectionStatus.Ready
-            adapter.notifyDataSetChanged()
 
             adapter.deviceInfoListener?.invoke(device)
 
             XLog.i("gattServiceData = $gattServiceData")
+
+            adapter.notifyDataSetChanged()
+
         }
 
         override fun onDeviceDisconnecting(device: BluetoothDevice) {

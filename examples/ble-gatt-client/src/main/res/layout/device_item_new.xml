@@ -104,14 +104,19 @@
 
     <TextView
         android:id="@+id/mac_address_value"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginRight="12dp"
+        android:layout_marginLeft="12dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:gravity="right"
         android:textColor="#000"
         android:text="0.0.12.2"
         android:textSize="12sp"
         android:fontFamily="monospace"
         app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintLeft_toRightOf="@id/mac_address"
         app:layout_constraintTop_toTopOf="@id/mac_address"
         app:layout_constraintBottom_toBottomOf="@id/mac_address" />
 

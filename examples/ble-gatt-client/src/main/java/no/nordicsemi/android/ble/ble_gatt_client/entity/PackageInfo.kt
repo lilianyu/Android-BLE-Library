@@ -2,12 +2,7 @@ package no.nordicsemi.android.ble.ble_gatt_client.entity
 
 import java.util.*
 
-data  class PackageInfo(
-    /**
-     *
-     */
-    val id: Long? = null,
-
+data class PackageInfo(
     /**
      *
      */
@@ -33,13 +28,4 @@ data  class PackageInfo(
      */
     val productId: Long? = null,
 
-    /**
-     *
-     */
-    val createdAt: Date? = null,
-
-    /**
-     *
-     */
-    val lastModifiedAt: Date? = null
 )

@@ -19,6 +19,8 @@ class UserViewModel : ViewModel() {
         MutableLiveData<PackageInfo>()
     }
 
+    var newVersionError:String? = null
+
     fun getUser(id: Long) {
         viewModelScope.launch {
             val result = RetrofitClient.apiService.getUserById(id)
@@ -31,8 +33,14 @@ class UserViewModel : ViewModel() {
     fun checkNewVersion(macAddress:String, hwVersion:Long, swVersion:Long) {
 
         viewModelScope.launch {
+            newVersionError = null
+
             val result = RetrofitClient.apiService.checkNewVersion(null, macAddress,
                 hwVersion, swVersion)
+
+            if (result.code != 0) {
+                newVersionError = "${result.message}(${result.code})"
+            }
 
             packageInfo.value = result.data
 

@@ -9,8 +9,8 @@ import java.util.concurrent.TimeUnit
  * 创建Retrofit提供API Service
  */
 object RetrofitClient {
-
-    private const val BASE_URL = "http://10.112.112.253:8081/"
+    private const val BASE_URL = "http://123.57.28.176:8081/"
+//    private const val BASE_URL = "http://192.168.0.106:8081/"
 //    private const val BASE_URL = "http://10.112.115.84:8080/"
 //    private const val BASE_URL = "http://localhost:8080/"
 
