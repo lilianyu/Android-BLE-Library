@@ -3,6 +3,7 @@ package no.nordicsemi.android.ble.ble_gatt_client
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import no.nordicsemi.android.ble.ble_gatt_client.databinding.DeviceItemNewBinding
@@ -40,6 +41,22 @@ class DeviceAdapter (
 
         holder.binding.hardwareVersionValue.text = deviceList[position].hardwareVersionReadable
         holder.binding.softwareVersionValue.text = deviceList[position].softwareVersionReadable
+
+        if (deviceList[position].stUpgrade == 0) {
+            holder.binding.tvUpgrading.visibility = View.GONE
+            holder.binding.tvProgress.visibility = View.GONE
+        } else if (deviceList[position].stUpgrade == 1) {
+            holder.binding.tvUpgrading.visibility = View.VISIBLE
+            holder.binding.tvProgress.visibility = View.VISIBLE
+            holder.binding.tvUpgrading.text = "升级中"
+            holder.binding.tvProgress.text = "${deviceList[position].upgradeProgress}%"
+        } else if (deviceList[position].stUpgrade == 2) {
+            holder.binding.tvUpgrading.visibility = View.VISIBLE
+            holder.binding.tvProgress.visibility = View.VISIBLE
+            holder.binding.tvProgress.text = "${deviceList[position].upgradeProgress}%"
+
+            holder.binding.tvUpgrading.text = "已升级"
+        }
 
         if (deviceList[position].connectStatus == ConnectionStatus.NotStarted ||
             deviceList[position].connectStatus == ConnectionStatus.FailedToConnect ||
@@ -87,6 +104,8 @@ class DeviceAdapter (
         var hardwareVersion: UInt? = null
         var softwareVersion: UInt? = null
         var address: ByteArray? = null
+        var stUpgrade: Int = 0 //0:未开始 1:升级中 2:已完成
+        var upgradeProgress: UInt = 0u
 
         val hardwareVersionReadable: String
             get() = when (hardwareVersion) {

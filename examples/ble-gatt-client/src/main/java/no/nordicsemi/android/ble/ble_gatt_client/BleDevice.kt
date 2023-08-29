@@ -180,7 +180,7 @@ class BleDevice(context: Context) : BleManager(context) {
                             when (get(0).toInt()) {
                                 0 -> { //本包数据成功
                                     ++index
-                                    nedRequest.notifyProgress(it.packet!!, index)
+                                    nedRequest.notifyProgress(it.packet!!, to, totalSize)
 
                                     Log.i(TAG, "packet No.${index} has been sent successfully!")
                                 }

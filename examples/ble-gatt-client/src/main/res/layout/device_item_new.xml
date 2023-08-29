@@ -32,6 +32,29 @@
         app:layout_constraintBottom_toBottomOf="@id/device_name"
         app:layout_constraintLeft_toRightOf="@+id/device_name" />
 
+    <TextView
+        android:id="@+id/tv_upgrading"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="升级中"
+        android:textSize="12sp"
+        android:layout_marginRight="2dp"
+        app:layout_constraintBottom_toBottomOf="@id/device_name"
+        app:layout_constraintRight_toLeftOf="@id/tv_progress"
+        />
+
+    <TextView
+        android:id="@+id/tv_progress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="15%"
+        android:textSize="16sp"
+        android:textColor="#000"
+        android:layout_marginRight="12dp"
+        app:layout_constraintBottom_toBottomOf="@id/device_name"
+        app:layout_constraintRight_toRightOf="parent"
+        />
+
     <View
         android:layout_width="match_parent"
         android:layout_height="1px"

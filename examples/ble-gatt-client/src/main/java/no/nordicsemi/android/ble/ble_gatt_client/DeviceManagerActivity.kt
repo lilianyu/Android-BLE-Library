@@ -232,10 +232,10 @@ class DeviceManagerActivity: AppCompatActivity()  {
             device?.let{
                 binding.sendUpgradePackage.isEnabled = false
                 gattServiceData?.upgradePackage(it, bytes, 0xFF001243.toInt())?.apply {
-                    progress { packet: ByteArray, index: Int ->
+                    progress { packet: ByteArray, soFar:Int, totalSize:Int ->
                         mainScope.launch {
 //                            val packetString = packet?.map { "%02X".format(it) }.toString()
-                            binding.respUpgradePackage.text = "已发送${index}包数据"
+                            binding.respUpgradePackage.text = "已发送${soFar}包数据"
                         }
                     }
 

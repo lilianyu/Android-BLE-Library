@@ -29,10 +29,10 @@ class NedRequest private constructor(val type: RequestType) {
         }
     }
 
-    private var successCallback: ((packet: NedPacket?) -> Unit)? = null
-    private var failCallback: ((failInfo: FailInfo, packet: NedPacket?) -> Unit)? = null
-    private var progressCallback: ((packet:ByteArray, index:Int) -> Unit)? = null
-    private var timeoutCallback: (() -> Unit)? = null
+    private var successCallbacks = mutableListOf<((packet: NedPacket?) -> Unit)>()
+    private var failCallbacks = mutableListOf<((failInfo: FailInfo, packet: NedPacket?) -> Unit)>()
+    private var progressCallbacks = mutableListOf<((packet:ByteArray, soFar:Int, totalSize:Int) -> Unit)>()
+    private var timeoutCallbacks = mutableListOf<(() -> Unit)>()
     private var requestHandler: BleDevice? = null
     private val logger: Logger = XLog.tag("NedRequest").build()
 
@@ -60,22 +60,22 @@ class NedRequest private constructor(val type: RequestType) {
     }
 
     fun done(callback: (packet: NedPacket?) -> Unit): NedRequest {
-        this.successCallback = callback
+        this.successCallbacks.add(callback)
         return this
     }
 
     fun fail(callback: (failInfo: FailInfo, packet: NedPacket?) -> Unit): NedRequest {
-        this.failCallback = callback
+        this.failCallbacks.add(callback)
         return this
     }
 
-    fun progress(callback: (packet:ByteArray, index:Int) -> Unit): NedRequest {
-        this.progressCallback = callback
+    fun progress(callback: (packet:ByteArray, soFar: Int, totalSize: Int) -> Unit): NedRequest {
+        this.progressCallbacks.add(callback)
         return this
     }
 
     fun timeout(@IntRange(from = 0) timeout: Long): NedRequest {
-        check(timeoutCallback == null) { "Request already started" }
+        check(timeoutCallbacks.isEmpty()) { "Request already started" }
         this.timeout = timeout
         return this
     }
@@ -108,7 +108,6 @@ class NedRequest private constructor(val type: RequestType) {
     }
 
     fun enqueue() {
-
         requestHandler?.processNedRequest(this)
     }
 
@@ -122,18 +121,24 @@ class NedRequest private constructor(val type: RequestType) {
         logger.i("request finished~")
 
         finished = true
-        successCallback?.invoke(packet)
+        successCallbacks.forEach { successCallback ->
+            successCallback.invoke(packet)
+        }
     }
 
     fun notifyFail(failInfo: FailInfo, packet: NedPacket?) {
         logger.i("request failed with $failInfo, ${packet?.packet}")
 
         finished = true
-        failCallback?.invoke(failInfo, packet)
+        failCallbacks.forEach { failCallback ->
+            failCallback.invoke(failInfo, packet)
+        }
     }
 
-    fun notifyProgress(packet:ByteArray, index:Int) {
-        progressCallback?.invoke(packet, index)
+    fun notifyProgress(packet:ByteArray, soFar:Int, totalSize:Int) {
+        progressCallbacks.forEach { progressCallback ->
+            progressCallback.invoke(packet, soFar, totalSize)
+        }
     }
 
     fun checkResponse(packet:NedPacket): Boolean {

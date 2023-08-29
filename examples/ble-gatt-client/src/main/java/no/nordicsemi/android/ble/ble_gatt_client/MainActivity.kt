@@ -49,10 +49,9 @@ import nedprotocol.NedPacket
 import no.nordicsemi.android.ble.ble_gatt_client.databinding.ActivityMainBinding
 import no.nordicsemi.android.ble.ble_gatt_client.repository.ScannerRepository
 import no.nordicsemi.android.ble.observer.ConnectionObserver
-import retrofit2.http.Url
 import java.io.File
+import java.io.FileInputStream
 import java.io.IOException
-import java.net.URL
 import java.nio.ByteBuffer
 import java.util.*
 
@@ -171,11 +170,10 @@ class MainActivity : AppCompatActivity() {
         checkNewVersion = { item ->
             item.hardwareVersion?.let { hwVersion ->
                 item.softwareVersion?.let { swVersion ->
-                    viewModel.checkNewVersion(item.addressReadable,
+                    viewModel.checkNewVersion(item,
                         hwVersion.toLong(), swVersion.toLong())
                 }
             }
-
         }
     }
 
@@ -198,18 +196,16 @@ class MainActivity : AppCompatActivity() {
 
         scanDevices()
 
-
         // Startup our Bluetooth GATT service explicitly so it continues to run even if
         // this activity is not in focus
         startService(Intent(this, GattService::class.java))
 
 //        viewModel.getUser(1)
 
-        viewModel.packageInfo.observe(this) {
-            if (it == null) {
+        viewModel.packageInfo.observe(this) { packageInfo ->
+            if (packageInfo == null) {
                 AlertDialog.Builder(this@MainActivity)
-                    .setTitle("出错了")
-                    .setMessage("版本升级出错：${viewModel.newVersionError}，请联系客服")
+                    .setMessage("${viewModel.newVersionError}")
                     .setPositiveButton("OK", null)
                     .create()
                     .show()
@@ -217,13 +213,13 @@ class MainActivity : AppCompatActivity() {
                 return@observe
             }
 
-            val path = Uri.parse(it.url).lastPathSegment
+            val path = Uri.parse(packageInfo.url).lastPathSegment
 
             val cacheFile = File(cacheDir, "packages/$path")
 
             val uri: Uri = FileProvider.getUriForFile(this, applicationContext.packageName + ".FileProvider", cacheFile)
 
-            FileDownloader.getImpl().create(it.url)
+            FileDownloader.getImpl().create(packageInfo.url)
                 .setPath(cacheFile.absolutePath)
                 .setListener (object : FileDownloadListener() {
                     override fun pending(
@@ -245,6 +241,88 @@ class MainActivity : AppCompatActivity() {
                     override fun completed(task: BaseDownloadTask?) {
                         XLog.i("completed")
 
+                        var newVersion: UInt? = packageInfo.versionCode?.toUInt()
+                        val ver = "${newVersion?.shr(24)?.toUByte()}.${newVersion?.shr(16)?.toUByte()}.${newVersion?.shr(8)?.toUByte()}.${newVersion?.toUByte()}"
+
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle("版本升级")
+                            .setMessage("有新的版本可用：${ver} \n ${packageInfo.description}")
+                            .setPositiveButton("升级" ) { dialogInterface: DialogInterface, i: Int ->
+
+                                val bytes = FileInputStream(cacheFile)
+                                    .use {
+                                        val fileBytes = ByteArray(it.available())
+                                        it.read(fileBytes)
+                                        fileBytes
+                                    }
+
+                                viewModel.currentDeviceToUpgrade?.let { device ->
+                                    gattServiceData?.upgradePackage(device, bytes, packageInfo.versionCode!!.toInt())?.apply {
+                                        progress { packet: ByteArray, soFar:Int, totalSize:Int ->
+
+                                            val deviceItem = adapter.deviceList.find { item ->
+                                                item.device.address == device.address
+                                            }
+
+                                            mainScope.launch {
+//                            val packetString = packet?.map { "%02X".format(it) }.toString()
+//                                                binding.respUpgradePackage.text = "已发送${index}包数据"
+                                                XLog.d("activity: 已发送${soFar}包数据")
+
+                                                deviceItem?.stUpgrade = 1
+
+                                                val percentage = soFar*100 / totalSize
+                                                deviceItem?.upgradeProgress = percentage.toUInt()
+
+                                                adapter.notifyDataSetChanged()
+                                            }
+                                        }
+
+                                        done {
+                                            val deviceItem = adapter.deviceList.find { item ->
+                                                item.device.address == device.address
+                                            }
+
+                                            mainScope.launch {
+//                                                binding.sendUpgradePackage.isEnabled = true
+//                                                binding.respUpgradePackage.text = "发送完成"
+                                                XLog.d("activity: finish")
+
+                                                deviceItem?.stUpgrade = 2
+                                                deviceItem?.upgradeProgress = 100u
+
+                                                adapter.notifyDataSetChanged()
+                                            }
+
+                                            viewModel.currentDeviceToUpgrade = null
+                                        }
+
+                                        fail { failInfo: FailInfo, nedPacket: NedPacket? ->
+                                            mainScope.launch {
+//                                                binding.sendUpgradePackage.isEnabled = true
+//
+//                                                var errorMessage = "${failInfo.message}"
+//                                                failInfo.extra?.let {extra ->
+//                                                    errorMessage = "${errorMessage}, $extra"
+//                                                }
+//                                                nedPacket?.let { nedPacket ->
+//                                                    errorMessage = "$errorMessage - ${nedPacket.packet?.map { byte ->  "%02X".format(byte) }.toString()}"
+//                                                }
+//
+//                                                binding.respUpgradePackage.text = errorMessage
+
+                                                XLog.e("activity: ${failInfo.message}")
+
+                                                viewModel.currentDeviceToUpgrade = null
+                                            }
+                                        }
+                                    }?.enqueue()
+                                }
+
+                            }
+                            .setNegativeButton("退出", null)
+                            .create()
+                            .show()
                     }
 
                     override fun paused(task: BaseDownloadTask?, soFarBytes: Int, totalBytes: Int) {
@@ -260,13 +338,6 @@ class MainActivity : AppCompatActivity() {
                     }
 
                 }).start()
-
-            AlertDialog.Builder(this@MainActivity)
-                .setTitle("版本升级")
-                .setMessage("有新的版本可用：${it.versionCode}")
-                .setPositiveButton("OK", null)
-                .create()
-                .show()
         }
     }
 
@@ -551,7 +622,6 @@ class MainActivity : AppCompatActivity() {
             XLog.i("gattServiceData = $gattServiceData")
 
             adapter.notifyDataSetChanged()
-
         }
 
         override fun onDeviceDisconnecting(device: BluetoothDevice) {
