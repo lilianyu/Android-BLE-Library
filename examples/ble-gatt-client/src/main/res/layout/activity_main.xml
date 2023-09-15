@@ -30,7 +30,6 @@
             android:text="正在扫描设备..."
             android:textColor="#000000"
             android:textSize="24sp" />
-
     </LinearLayout>
 
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -65,9 +64,18 @@
                     android:orientation="vertical"
                     android:background="@color/colorBackground"
                     android:layout_weight="1"/>
+
+                <TextView
+                    android:id="@+id/contact"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:accessibilityLiveRegion="none"
+                    android:text="商务垂询：17813702830"
+                    android:gravity="bottom|center"
+                    android:textColor="#2B2B2B"
+                    android:textSize="14sp"
+                    android:layout_marginBottom="16dp"/>
             </LinearLayout>
-
-
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

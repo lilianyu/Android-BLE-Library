@@ -87,6 +87,7 @@ class DeviceAdapter (
             checkNewVersion?.invoke(deviceList[position])
         }
 
+        holder.binding.btnUpgrade.visibility = View.GONE
         holder.binding.btnUpgrade.setOnClickListener {
             upgradeListener?.invoke(deviceList[position])
         }

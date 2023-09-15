@@ -36,6 +36,7 @@ import android.os.*
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -55,6 +56,7 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.*
 
+
 class MainActivity : AppCompatActivity() {
     private val REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS: Int = 1001
 
@@ -65,10 +67,6 @@ class MainActivity : AppCompatActivity() {
     private val viewModel by viewModels<UserViewModel>()
 
     private var scanPending = false;
-
-    private var gattServiceConn: MainActivity.GattServiceConn? = null
-
-    private var gattServiceData: GattService.DataPlane? = null
 
     private val callback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
@@ -103,14 +101,14 @@ class MainActivity : AppCompatActivity() {
     private var adapter: DeviceAdapter = DeviceAdapter().apply {
         connectListener = {item, cmd ->
             if (cmd == DeviceAdapter.CMD_CONNECT ) {
-                gattServiceData?.connectDevice(item.device, DeviceConnectionCallback())
+                GattServiceClient.gattServiceProxy?.connectDevice(item.device, DeviceConnectionCallback())
             } else {
-                gattServiceData?.disconnectDevice(item.device)
+                GattServiceClient.gattServiceProxy?.disconnectDevice(item.device)
             }
         }
 
         deviceInfoListener = {
-            gattServiceData?.getDeviceInfo(it)
+            GattServiceClient.gattServiceProxy?.getDeviceInfo(it)
                 ?.apply {
                     fail { failInfo: FailInfo, nedPacket: NedPacket? ->
                         XLog.i("Fail ${failInfo.message}")
@@ -196,11 +194,22 @@ class MainActivity : AppCompatActivity() {
 
         scanDevices()
 
+        binding.contact.setOnClickListener {
+            val number = (it as TextView).text.split(":").last().trim()
+            val uri = "tel:${number}"
+            val intent = Intent(Intent.ACTION_DIAL)
+            intent.data = Uri.parse(uri)
+            startActivity(intent)
+        }
+
         // Startup our Bluetooth GATT service explicitly so it continues to run even if
         // this activity is not in focus
-        startService(Intent(this, GattService::class.java))
+        if ( Build.VERSION.SDK_INT >=  Build.VERSION_CODES.O ) {
+            startForegroundService(Intent(this, GattService::class.java))
+        } else {
+            startService(Intent(this, GattService::class.java))
+        }
 
-//        viewModel.getUser(1)
 
         viewModel.packageInfo.observe(this) { packageInfo ->
             if (packageInfo == null) {
@@ -257,7 +266,7 @@ class MainActivity : AppCompatActivity() {
                                     }
 
                                 viewModel.currentDeviceToUpgrade?.let { device ->
-                                    gattServiceData?.upgradePackage(device, bytes, packageInfo.versionCode!!.toInt())?.apply {
+                                    GattServiceClient.gattServiceProxy?.upgradePackage(device, bytes, packageInfo.versionCode!!.toInt())?.apply {
                                         progress { packet: ByteArray, soFar:Int, totalSize:Int ->
 
                                             val deviceItem = adapter.deviceList.find { item ->
@@ -352,6 +361,18 @@ class MainActivity : AppCompatActivity() {
         }
 
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        if (bluetoothManager.adapter.bluetoothLeScanner == null) {
+            AlertDialog.Builder(this@MainActivity)
+                .setMessage("请您先打开蓝牙再使用，感谢您的支持")
+                .setPositiveButton("OK") { dialogInterface: DialogInterface, i: Int ->
+                    stopScan()
+                }
+                .create()
+                .show()
+
+            return
+        }
+
         val repository = ScannerRepository(this@MainActivity, bluetoothManager.adapter)
 
         with(mainHandler) {
@@ -369,15 +390,7 @@ class MainActivity : AppCompatActivity() {
                     binding.swipeRefresh.visibility = View.VISIBLE
                     binding.swipeRefresh.isRefreshing = false
                 } else {
-                    binding.scanStatus.text = "重新扫描"
-                    binding.scanStatus.isClickable = true
-                    binding.scanView.stopScan()
-                    binding.scanStatus.setOnClickListener() { view ->
-                        scanDevices()
-                        binding.scanView.startScan()
-                        binding.scanStatus.isClickable = false
-                        binding.scanStatus.text = "正在扫描设备..."
-                    }
+                    stopScan()
                 }
 
 
@@ -385,21 +398,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
+
     override fun onStart() {
         super.onStart()
 
-        val latestGattServiceConn = GattServiceConn()
-        if (bindService(Intent(GattService.DATA_PLANE_ACTION, null, this, GattService::class.java), latestGattServiceConn, 0)) {
-            gattServiceConn = latestGattServiceConn
-        }
-    }
-
-    override fun onStop() {
-        super.onStop()
-
-        if (gattServiceConn != null) {
-            unbindService(gattServiceConn!!)
-            gattServiceConn = null
+        if (!GattServiceClient.isConnected()) {
+            GattServiceClient.bindService(applicationContext)
         }
     }
 
@@ -424,7 +429,7 @@ class MainActivity : AppCompatActivity() {
                         val name = android.text.format.DateFormat.format("yyyy-MM-dd", Date())
                         val  file = File("${it.absolutePath}/${name}")
 
-                        val contentUri = FileProvider.getUriForFile(this, NedApplication.FILE_PROVIDER_AUTHORITY, file)
+                        val contentUri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID + ".FileProvider", file)
 
                         if (contentUri != null) {
                             var shareIntent = Intent(Intent.ACTION_SEND)
@@ -440,6 +445,11 @@ class MainActivity : AppCompatActivity() {
                     e.printStackTrace()
                 }
 
+                true
+            }
+            R.id.menu_about -> {
+                val intent = Intent(this, AboutActivity::class.java)
+                startActivity(intent)
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -486,6 +496,18 @@ class MainActivity : AppCompatActivity() {
             }
             else -> super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
+        }
+    }
+
+    private fun stopScan() {
+        binding.scanStatus.text = "重新扫描"
+        binding.scanStatus.isClickable = true
+        binding.scanView.stopScan()
+        binding.scanStatus.setOnClickListener() { view ->
+            scanDevices()
+            binding.scanView.startScan()
+            binding.scanStatus.isClickable = false
+            binding.scanStatus.text = "正在扫描设备..."
         }
     }
 
@@ -558,29 +580,6 @@ class MainActivity : AppCompatActivity() {
         return unauthorizedPermissions
     }
 
-    private inner class GattServiceConn : ServiceConnection {
-
-        override fun onServiceDisconnected(name: ComponentName?) {
-            if (BuildConfig.DEBUG && GattService::class.java.name != name?.className) {
-                error("Disconnected from unknown service")
-            } else {
-                gattServiceData = null
-            }
-        }
-
-        @SuppressLint("MissingPermission")
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            if (BuildConfig.DEBUG && GattService::class.java.name != name?.className)
-                error("Connected to unknown service")
-            else {
-                gattServiceData = service as GattService.DataPlane
-                XLog.i("onServiceConnected, gattServiceData = $gattServiceData")
-            }
-
-            gattServiceData?.enableServices()
-        }
-    }
-
     inner class DeviceConnectionCallback : ConnectionObserver {
 
         override fun onDeviceConnecting(device: BluetoothDevice) {
@@ -618,8 +617,6 @@ class MainActivity : AppCompatActivity() {
             deviceItem?.connectStatus = ConnectionStatus.Ready
 
             adapter.deviceInfoListener?.invoke(device)
-
-            XLog.i("gattServiceData = $gattServiceData")
 
             adapter.notifyDataSetChanged()
         }

@@ -23,8 +23,7 @@ class ScannerRepository  constructor(
             ?: throw NullPointerException("Bluetooth not initialized")
     }
 
-    fun startScan(callback: ScanCallback
-    ) {
+    fun startScan(callback: ScanCallback) {
         val scanSettings = ScanSettings.Builder()
             .setReportDelay(0) // Set to 0 to be notified of scan results immediately.
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)

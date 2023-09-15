@@ -42,15 +42,20 @@ class UserViewModel : ViewModel() {
                 newVersionError = "当前有设备正在升级中，请稍后再试"
             }
 
-            val result = RetrofitClient.apiService.checkNewVersion(null, item.addressReadable,
-                hwVersion, swVersion)
+            try {
+                val result = RetrofitClient.apiService.checkNewVersion(null, item.addressReadable,
+                    hwVersion, swVersion)
 
-            if (result.code != 0) {
-                newVersionError = "${result.message}(${result.code})"
+                if (result.code != 0) {
+                    newVersionError = "${result.message}(${result.code})"
+                }
+
+                currentDeviceToUpgrade = item.device
+                packageInfo.value = result.data
+            } catch (e: Exception) {
+                newVersionError = "连接出错：${e.message}，请检查网络后重试"
+                packageInfo.value = null
             }
-
-            currentDeviceToUpgrade = item.device
-            packageInfo.value = result.data
 
             Log.d("ViewPagerViewModel", "checkNewVersion: ${packageInfo.value}")
         }
