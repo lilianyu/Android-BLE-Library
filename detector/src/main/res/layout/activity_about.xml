@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="com.techvll.android.detector.AboutActivity">
+
+
+    <ImageView
+        android:id="@+id/imageView"
+        android:layout_width="160dp"
+        android:layout_height="160dp"
+        android:layout_marginTop="40dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.497"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:srcCompat="@drawable/icon4" />
+
+    <TextView
+        android:id="@+id/tag_app_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="-10dp"
+        android:text="小瑞智控"
+        android:textSize="28sp"
+        android:fontFamily="sans-serif"
+        android:textColor="@color/cardview_dark_background"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.498"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/imageView" />
+
+    <TextView
+        android:id="@+id/version_number"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginRight="12dp"
+        android:textColor="#000"
+        android:text="1.0.2"
+        android:textSize="24sp"
+        android:fontFamily="sans-serif-light"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tag_app_name"/>
+
+
+    <TextView
+        android:id="@+id/tag_contact"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="16dp"
+        android:layout_marginTop="32dp"
+        android:fontFamily="sans-serif-medium"
+        android:text="商务垂询"
+        android:textSize="18sp"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/version_number" />
+
+    <ImageView
+        android:id="@+id/arrow_contact"
+        android:layout_width="26dp"
+        android:layout_height="26dp"
+        android:layout_marginRight="8dp"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="@id/tag_contact"
+        app:layout_constraintBottom_toBottomOf="@id/tag_contact"
+        app:srcCompat="@drawable/arrow_right" />
+
+    <TextView
+        android:id="@+id/phone_number"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#000"
+        android:text="@string/business_number"
+        android:textSize="18sp"
+        android:fontFamily="monospace"
+        app:layout_constraintRight_toLeftOf="@id/arrow_contact"
+        app:layout_constraintTop_toTopOf="@id/tag_contact"
+        app:layout_constraintBottom_toBottomOf="@id/tag_contact" />
+
+
+
+    <TextView
+        android:id="@+id/tag_submit_log"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="16dp"
+        android:layout_marginTop="24dp"
+        android:fontFamily="sans-serif-medium"
+        android:text="日志上报"
+        android:textSize="18sp"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tag_contact" />
+
+
+    <ImageView
+        android:id="@+id/arrow_submit_log"
+        android:layout_width="26dp"
+        android:layout_height="26dp"
+        app:layout_constraintRight_toRightOf="@id/arrow_contact"
+        app:layout_constraintTop_toTopOf="@id/tag_submit_log"
+        app:layout_constraintBottom_toBottomOf="@id/tag_submit_log"
+        app:srcCompat="@drawable/arrow_right" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
