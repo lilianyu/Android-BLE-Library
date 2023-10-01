@@ -1,8 +1,8 @@
 <resources>
     <string name="app_name">小瑞智控</string>
-    <string name="gatt_service_name">BLE Gatt Service</string>
+    <string name="gatt_service_name">小瑞智控</string>
     <string name="gatt_service_description">A background BLE GATT service</string>
-    <string name="gatt_service_running_notification">\"Managing BLE GATT service\"</string>
+    <string name="gatt_service_running_notification">设备升级中</string>
     <string name="pair_the_ble_gatt_server_via_settings">Pair the ble-gatt-server via settings</string>
     <string name="title_activity_about2">AboutActivity2</string>
     <!-- Strings used for fragments for navigation -->
@@ -10,6 +10,8 @@
     <string name="second_fragment_label">Second Fragment</string>
     <string name="next">Next</string>
     <string name="previous">Previous</string>
+    
+    <string name="business_number">18653299251</string>
 
     <string name="lorem_ipsum">
         Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam in scelerisque sem. Mauris

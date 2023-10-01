@@ -34,11 +34,11 @@ import android.content.IntentFilter
 import android.os.*
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.elvishew.xlog.XLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.launch
+import nedprotocol.NedPacket
 import no.nordicsemi.android.ble.observer.ConnectionObserver
 
 
@@ -92,28 +92,6 @@ class GattService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-
-        // Setup as a foreground service
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val notificationChannel =
-                NotificationChannel(
-                        GattService::class.java.simpleName,
-                        resources.getString(R.string.gatt_service_name),
-                        NotificationManager.IMPORTANCE_DEFAULT
-                )
-
-            val notificationService =
-                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationService.createNotificationChannel(notificationChannel)
-        }
-
-        val notification = NotificationCompat.Builder(this, GattService::class.java.simpleName)
-                .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle(resources.getString(R.string.gatt_service_name))
-                .setContentText(resources.getString(R.string.gatt_service_running_notification))
-                .setAutoCancel(true)
-
-        startForeground(1, notification.build())
 
         // Observe OS state changes in BLE
         bluetoothObserver = object : BroadcastReceiver() {
@@ -199,29 +177,16 @@ class GattService : Service() {
             }
         }
 
-        fun getDeviceInfo(device: BluetoothDevice): NedRequest? {
-            nedClient.bleDevices[device.address]?.let { bleDevice ->
-
-                return NedRequest.nedDeviceInfoRequest().setRequestHandler(bleDevice)
-            }
-
-            return null
+        fun getDeviceInfo(device: BluetoothDevice, listener: NedRequestListener): NedRequest? {
+            return nedClient.getDeviceInfo(device, listener)
         }
 
-        fun getPlainData(device: BluetoothDevice): NedRequest?  {
-            nedClient.bleDevices[device.address]?.let { bleDevice ->
-                return NedRequest.nedPlainDataRequest().setRequestHandler(bleDevice)
-            }
-
-            return null
+        fun getPlainData(device: BluetoothDevice, listener: NedRequestListener): NedRequest?  {
+            return nedClient.getPlainData(device, listener)
         }
 
-        fun upgradePackage(device: BluetoothDevice, pkg: ByteArray, newVersion:Int): NedRequest?  {
-            nedClient.bleDevices[device.address]?.let { bleDevice ->
-                return NedRequest.nedUpgradeRequest(pkg, newVersion).setRequestHandler(bleDevice)
-            }
-
-            return null
+        fun upgradePackage(device: BluetoothDevice, pkg: ByteArray, newVersion:Int, listener: NedRequestListener): NedRequest?  {
+            return nedClient.upgradeDevice(device, listener, pkg, newVersion)
         }
     }
 

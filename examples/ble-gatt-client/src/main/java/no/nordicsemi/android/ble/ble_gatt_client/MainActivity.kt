@@ -108,47 +108,53 @@ class MainActivity : AppCompatActivity() {
         }
 
         deviceInfoListener = {
-            GattServiceClient.gattServiceProxy?.getDeviceInfo(it)
-                ?.apply {
-                    fail { failInfo: FailInfo, nedPacket: NedPacket? ->
-                        XLog.i("Fail ${failInfo.message}")
+            GattServiceClient.gattServiceProxy?.getDeviceInfo(it, object:NedRequestListener(){
+                override fun onCompleted(device: BluetoothDevice, nedPacket: NedPacket?) {
+                    viewModel.currentDeviceToUpgrade = null
 
-                        mainScope.launch {
-                            var errorMessage = "${failInfo.message}"
-                            failInfo.extra?.let {extra ->
-                                errorMessage = "${errorMessage}, $extra"
-                            }
-                            nedPacket?.let { nedPacket ->
-                                errorMessage = "${errorMessage} - ${nedPacket.packet?.map {byte ->  "%02X".format(byte) }.toString()}"
-                            }
-
-//                            binding.respData.text = errorMessage
+                    mainScope.launch {
+                        val deviceItem = deviceList.find { item ->
+                            item.device.address == device.address
                         }
-                    }
-                    done { nedPacket ->
-                        mainScope.launch {
-                            val deviceItem = deviceList.find { item ->
-                                item.device.address == it.address
-                            }
 
-                            deviceItem?.hardwareVersion = nedPacket?.payload?.let { payload ->
-                                XLog.i(payload)
-                                ByteBuffer.wrap(payload).getInt(0).toUInt()
-                            }
+                        deviceItem?.hardwareVersion = nedPacket?.payload?.let { payload ->
+                            XLog.i(payload)
+                            ByteBuffer.wrap(payload).getInt(0).toUInt()
+                        }
 
-                            deviceItem?.softwareVersion = nedPacket?.payload?.let { payload ->
-                                XLog.i(payload)
-                                ByteBuffer.wrap(payload).getInt(4).toUInt()
-                            }
+                        deviceItem?.softwareVersion = nedPacket?.payload?.let { payload ->
+                            XLog.i(payload)
+                            ByteBuffer.wrap(payload).getInt(4).toUInt()
+                        }
 
-                            deviceItem?.address = nedPacket?.payload?.copyOfRange(8,24)
+                        deviceItem?.address = nedPacket?.payload?.copyOfRange(8,24)
 
-                            notifyDataSetChanged()
+                        notifyDataSetChanged()
 
 //                            binding.respData.text = hexBytes.toString()
-                        }
                     }
-                }?.enqueue()
+                }
+
+                override fun onFail(device: BluetoothDevice, failInfo: FailInfo, nedPacket: NedPacket?) {
+                    XLog.i("Fail ${failInfo.message}")
+                    viewModel.currentDeviceToUpgrade = null
+
+                    mainScope.launch {
+                        var errorMessage = "${failInfo.message}"
+                        failInfo.extra?.let {extra ->
+                            errorMessage = "${errorMessage}, $extra"
+                        }
+                        nedPacket?.let { nedPacket ->
+                            errorMessage = "${errorMessage} - ${nedPacket.packet?.map {byte ->  "%02X".format(byte) }.toString()}"
+                        }
+
+
+
+//                            binding.respData.text = errorMessage
+                    }
+                }
+
+            })?.enqueue()
         }
 
         upgradeListener = {
@@ -166,6 +172,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         checkNewVersion = { item ->
+
             item.hardwareVersion?.let { hwVersion ->
                 item.softwareVersion?.let { swVersion ->
                     viewModel.checkNewVersion(item,
@@ -184,6 +191,8 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         binding.bondedDevice.adapter = adapter
+
+        binding.contact.text = "商务垂询：${binding.contact.text}"
 
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         val repository = ScannerRepository(this@MainActivity, bluetoothManager.adapter)
@@ -204,12 +213,11 @@ class MainActivity : AppCompatActivity() {
 
         // Startup our Bluetooth GATT service explicitly so it continues to run even if
         // this activity is not in focus
-        if ( Build.VERSION.SDK_INT >=  Build.VERSION_CODES.O ) {
-            startForegroundService(Intent(this, GattService::class.java))
-        } else {
+//        if ( Build.VERSION.SDK_INT >=  Build.VERSION_CODES.O ) {
+//            startForegroundService(Intent(this, GattService::class.java))
+//        } else {
             startService(Intent(this, GattService::class.java))
-        }
-
+//        }
 
         viewModel.packageInfo.observe(this) { packageInfo ->
             if (packageInfo == null) {
@@ -266,28 +274,11 @@ class MainActivity : AppCompatActivity() {
                                     }
 
                                 viewModel.currentDeviceToUpgrade?.let { device ->
-                                    GattServiceClient.gattServiceProxy?.upgradePackage(device, bytes, packageInfo.versionCode!!.toInt())?.apply {
-                                        progress { packet: ByteArray, soFar:Int, totalSize:Int ->
-
-                                            val deviceItem = adapter.deviceList.find { item ->
-                                                item.device.address == device.address
-                                            }
-
-                                            mainScope.launch {
-//                            val packetString = packet?.map { "%02X".format(it) }.toString()
-//                                                binding.respUpgradePackage.text = "已发送${index}包数据"
-                                                XLog.d("activity: 已发送${soFar}包数据")
-
-                                                deviceItem?.stUpgrade = 1
-
-                                                val percentage = soFar*100 / totalSize
-                                                deviceItem?.upgradeProgress = percentage.toUInt()
-
-                                                adapter.notifyDataSetChanged()
-                                            }
-                                        }
-
-                                        done {
+                                    GattServiceClient.gattServiceProxy?.upgradePackage(device, bytes, packageInfo.versionCode!!.toInt(), object : NedRequestListener() {
+                                        override fun onCompleted(
+                                            device: BluetoothDevice,
+                                            packet: NedPacket?
+                                        ) {
                                             val deviceItem = adapter.deviceList.find { item ->
                                                 item.device.address == device.address
                                             }
@@ -306,28 +297,57 @@ class MainActivity : AppCompatActivity() {
                                             viewModel.currentDeviceToUpgrade = null
                                         }
 
-                                        fail { failInfo: FailInfo, nedPacket: NedPacket? ->
+                                        override fun onFail(
+                                            device: BluetoothDevice,
+                                            failInfo: FailInfo,
+                                            nedPacket: NedPacket?
+                                        ) {
                                             mainScope.launch {
-//                                                binding.sendUpgradePackage.isEnabled = true
-//
-//                                                var errorMessage = "${failInfo.message}"
-//                                                failInfo.extra?.let {extra ->
-//                                                    errorMessage = "${errorMessage}, $extra"
-//                                                }
-//                                                nedPacket?.let { nedPacket ->
-//                                                    errorMessage = "$errorMessage - ${nedPacket.packet?.map { byte ->  "%02X".format(byte) }.toString()}"
-//                                                }
-//
-//                                                binding.respUpgradePackage.text = errorMessage
+                                                var errorMessage = "${failInfo.message}"
+                                                failInfo.extra?.let {extra ->
+                                                    errorMessage = "${errorMessage}, $extra"
+                                                }
+                                                nedPacket?.let { nedPacket ->
+                                                    errorMessage = "$errorMessage - ${nedPacket.packet?.map { byte ->  "%02X".format(byte) }.toString()}"
+                                                }
 
                                                 XLog.e("activity: ${failInfo.message}")
+
+                                                val deviceItem = adapter.deviceList.find { item ->
+                                                    item.device.address == device.address
+                                                }
+
+
 
                                                 viewModel.currentDeviceToUpgrade = null
                                             }
                                         }
-                                    }?.enqueue()
-                                }
 
+                                        override fun onProgress(
+                                            device: BluetoothDevice,
+                                            packet:ByteArray,
+                                            soFar:Int,
+                                            totalSize:Int) {
+                                            val deviceItem = adapter.deviceList.find { item ->
+                                                item.device.address == device.address
+                                            }
+
+                                            mainScope.launch {
+//                            val packetString = packet?.map { "%02X".format(it) }.toString()
+//                                                binding.respUpgradePackage.text = "已发送${index}包数据"
+                                                XLog.d("activity: 已发送${soFar}包数据")
+
+                                                deviceItem?.stUpgrade = 1
+
+                                                val percentage = soFar*100 / totalSize
+                                                deviceItem?.upgradeProgress = percentage.toUInt()
+
+                                                adapter.notifyDataSetChanged()
+                                            }
+                                        }
+
+                                    })?.enqueue()
+                                }
                             }
                             .setNegativeButton("退出", null)
                             .create()
@@ -423,30 +443,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when(item.itemId) {
-            R.id.menu_main_sharing -> {
-                try {
-                    externalCacheDir?.let {
-                        val name = android.text.format.DateFormat.format("yyyy-MM-dd", Date())
-                        val  file = File("${it.absolutePath}/${name}")
-
-                        val contentUri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID + ".FileProvider", file)
-
-                        if (contentUri != null) {
-                            var shareIntent = Intent(Intent.ACTION_SEND)
-                            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            shareIntent.type = "text/plain"
-                            /** set the corresponding mime type of the file to be shared */
-                            shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri)
-
-                            startActivity(Intent.createChooser(shareIntent, "Share to"))
-                        }
-                    }
-                } catch (e: IOException) {
-                    e.printStackTrace()
-                }
-
-                true
-            }
             R.id.menu_about -> {
                 val intent = Intent(this, AboutActivity::class.java)
                 startActivity(intent)

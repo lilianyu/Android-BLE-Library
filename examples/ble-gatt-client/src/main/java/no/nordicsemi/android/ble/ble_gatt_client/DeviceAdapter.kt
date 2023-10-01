@@ -128,7 +128,6 @@ class DeviceAdapter (
             get() = when (address) {
                 null -> "未连接"
                 else -> address!!?.map {byte ->  "%02X".format(byte) }!!.joinToString(".")
-
             }
 
     }

@@ -83,37 +83,6 @@ class DeviceManagerActivity: AppCompatActivity()  {
         return super.onCreateOptionsMenu(menu)
     }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when(item.itemId) {
-            R.id.menu_main_sharing -> {
-                try {
-                    externalCacheDir?.let {
-                         val name = android.text.format.DateFormat.format("yyyy-MM-dd", Date())
-                         val  file = File("${it.absolutePath}/${name}")
-
-                         val contentUri = FileProvider.getUriForFile(this, NedApplication.FILE_PROVIDER_AUTHORITY, file)
-
-                         if (contentUri != null) {
-                             var shareIntent = Intent(Intent.ACTION_SEND)
-                             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                             shareIntent.type = "text/plain"
-                             /** set the corresponding mime type of the file to be shared */
-                             shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri)
-
-                             startActivity(Intent.createChooser(shareIntent, "Share to"))
-                         }
-                    }
-                } catch (e: IOException) {
-                    e.printStackTrace()
-                }
-
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
-
-        }
-    }
-
     override fun onStart() {
         super.onStart()
 
@@ -157,113 +126,113 @@ class DeviceManagerActivity: AppCompatActivity()  {
     }
 
     private fun configCommandListener() {
-        binding.sendDeviceInfo.setOnClickListener {
-            device?.let{
-                gattServiceData?.getDeviceInfo(it)
-                    ?.apply {
-                        fail { failInfo: FailInfo, nedPacket: NedPacket? ->
-                            mainScope.launch {
-                                var errorMessage = "${failInfo.message}"
-                                failInfo.extra?.let {extra ->
-                                    errorMessage = "${errorMessage}, $extra"
-                                }
-                                nedPacket?.let { nedPacket ->
-                                    errorMessage = "${errorMessage} - ${nedPacket.packet?.map {byte ->  "%02X".format(byte) }.toString()}"
-                                }
-
-                                binding.respData.text = errorMessage
-                            }
-                        }
-                        done {
-                            mainScope.launch {
-                                val hexBytes = it?.packet?.map { byte ->
-                                    "%02X".format(byte)
-                                }
-
-                                binding.respData.text = hexBytes.toString()
-                            }
-                        }
-                    }?.enqueue()
-            }
-        }
-
-        binding.sendPlainData.setOnClickListener {
-            device?.let{
-                gattServiceData?.getPlainData(it)?.apply {
-                    fail { failInfo: FailInfo, nedPacket: NedPacket? ->
-                        mainScope.launch {
-
-                            var errorMessage = "${failInfo.message}"
-                            failInfo.extra?.let {extra ->
-                                errorMessage = "${errorMessage}, $extra"
-                            }
-                            nedPacket?.let { nedPacket ->
-                                errorMessage = "${errorMessage} - ${nedPacket.packet?.map {byte ->  "%02X".format(byte) }.toString()}"
-                            }
-
-                            binding.respDataPlainData.text = errorMessage
-                        }
-                    }
-                    done {
-                        mainScope.launch {
-                            val hexBytes = it?.packet?.map { byte ->
-                                "%02X".format(byte)
-                            }
-                            binding.respDataPlainData.text = hexBytes.toString()
-                        }
-                    }
-                }?.enqueue()
-            }
-        }
-
-        val bytes = assets.open("ChargingPointMaster.bin")
-//        val inputStream = assets.open("registration.pdf")
-//        val inputStream = assets.open("edit.svg")
-         .use {
-            val fileBytes = ByteArray(it.available())
-            it.read(fileBytes)
-            fileBytes
-        }
-
-        val packetForUpgradeInfo =
-            PacketFactory.packetForUpgradeInfo(bytes.size, 0xFF001243.toInt(), "asdlkjfaklsjdfa".toByteArray())
-
-        binding.sendUpgradePackage.setOnClickListener {
-            device?.let{
-                binding.sendUpgradePackage.isEnabled = false
-                gattServiceData?.upgradePackage(it, bytes, 0xFF001243.toInt())?.apply {
-                    progress { packet: ByteArray, soFar:Int, totalSize:Int ->
-                        mainScope.launch {
-//                            val packetString = packet?.map { "%02X".format(it) }.toString()
-                            binding.respUpgradePackage.text = "已发送${soFar}包数据"
-                        }
-                    }
-
-                    done {
-                        mainScope.launch {
-                            binding.sendUpgradePackage.isEnabled = true
-                            binding.respUpgradePackage.text = "发送完成"
-                        }
-                    }
-
-                    fail { failInfo: FailInfo, nedPacket: NedPacket? ->
-                        mainScope.launch {
-                            binding.sendUpgradePackage.isEnabled = true
-
-                            var errorMessage = "${failInfo.message}"
-                            failInfo.extra?.let {extra ->
-                                errorMessage = "${errorMessage}, $extra"
-                            }
-                            nedPacket?.let { nedPacket ->
-                                errorMessage = "$errorMessage - ${nedPacket.packet?.map { byte ->  "%02X".format(byte) }.toString()}"
-                            }
-
-                            binding.respUpgradePackage.text = errorMessage
-                        }
-                    }
-                }?.enqueue()
-            }
-        }
+//        binding.sendDeviceInfo.setOnClickListener {
+//            device?.let{
+//                gattServiceData?.getDeviceInfo(it)
+//                    ?.apply {
+//                        fail { failInfo: FailInfo, nedPacket: NedPacket? ->
+//                            mainScope.launch {
+//                                var errorMessage = "${failInfo.message}"
+//                                failInfo.extra?.let {extra ->
+//                                    errorMessage = "${errorMessage}, $extra"
+//                                }
+//                                nedPacket?.let { nedPacket ->
+//                                    errorMessage = "${errorMessage} - ${nedPacket.packet?.map {byte ->  "%02X".format(byte) }.toString()}"
+//                                }
+//
+//                                binding.respData.text = errorMessage
+//                            }
+//                        }
+//                        done {
+//                            mainScope.launch {
+//                                val hexBytes = it?.packet?.map { byte ->
+//                                    "%02X".format(byte)
+//                                }
+//
+//                                binding.respData.text = hexBytes.toString()
+//                            }
+//                        }
+//                    }?.enqueue()
+//            }
+//        }
+//
+//        binding.sendPlainData.setOnClickListener {
+//            device?.let{
+//                gattServiceData?.getPlainData(it)?.apply {
+//                    fail { failInfo: FailInfo, nedPacket: NedPacket? ->
+//                        mainScope.launch {
+//
+//                            var errorMessage = "${failInfo.message}"
+//                            failInfo.extra?.let {extra ->
+//                                errorMessage = "${errorMessage}, $extra"
+//                            }
+//                            nedPacket?.let { nedPacket ->
+//                                errorMessage = "${errorMessage} - ${nedPacket.packet?.map {byte ->  "%02X".format(byte) }.toString()}"
+//                            }
+//
+//                            binding.respDataPlainData.text = errorMessage
+//                        }
+//                    }
+//                    done {
+//                        mainScope.launch {
+//                            val hexBytes = it?.packet?.map { byte ->
+//                                "%02X".format(byte)
+//                            }
+//                            binding.respDataPlainData.text = hexBytes.toString()
+//                        }
+//                    }
+//                }?.enqueue()
+//            }
+//        }
+//
+//        val bytes = assets.open("ChargingPointMaster.bin")
+////        val inputStream = assets.open("registration.pdf")
+////        val inputStream = assets.open("edit.svg")
+//         .use {
+//            val fileBytes = ByteArray(it.available())
+//            it.read(fileBytes)
+//            fileBytes
+//        }
+//
+//        val packetForUpgradeInfo =
+//            PacketFactory.packetForUpgradeInfo(bytes.size, 0xFF001243.toInt(), "asdlkjfaklsjdfa".toByteArray())
+//
+//        binding.sendUpgradePackage.setOnClickListener {
+//            device?.let{
+//                binding.sendUpgradePackage.isEnabled = false
+//                gattServiceData?.upgradePackage(it, bytes, 0xFF001243.toInt())?.apply {
+//                    progress { packet: ByteArray, soFar:Int, totalSize:Int ->
+//                        mainScope.launch {
+////                            val packetString = packet?.map { "%02X".format(it) }.toString()
+//                            binding.respUpgradePackage.text = "已发送${soFar}包数据"
+//                        }
+//                    }
+//
+//                    done {
+//                        mainScope.launch {
+//                            binding.sendUpgradePackage.isEnabled = true
+//                            binding.respUpgradePackage.text = "发送完成"
+//                        }
+//                    }
+//
+//                    fail { failInfo: FailInfo, nedPacket: NedPacket? ->
+//                        mainScope.launch {
+//                            binding.sendUpgradePackage.isEnabled = true
+//
+//                            var errorMessage = "${failInfo.message}"
+//                            failInfo.extra?.let {extra ->
+//                                errorMessage = "${errorMessage}, $extra"
+//                            }
+//                            nedPacket?.let { nedPacket ->
+//                                errorMessage = "$errorMessage - ${nedPacket.packet?.map { byte ->  "%02X".format(byte) }.toString()}"
+//                            }
+//
+//                            binding.respUpgradePackage.text = errorMessage
+//                        }
+//                    }
+//                }?.enqueue()
+//            }
+//        }
 
         binding.reviewDataDeviceInfo.setOnClickListener {
             AlertDialog.Builder(this)
@@ -283,14 +252,14 @@ class DeviceManagerActivity: AppCompatActivity()  {
                 .show()
         }
 
-        binding.reviewDataUpgradePackage.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle("发送升级包")
-                .setMessage(packetForUpgradeInfo.packet?.map { "%02X".format(it) }.toString())
-                .setPositiveButton("OK", null)
-                .create()
-                .show()
-        }
+//        binding.reviewDataUpgradePackage.setOnClickListener {
+//            AlertDialog.Builder(this)
+//                .setTitle("发送升级包")
+//                .setMessage(packetForUpgradeInfo.packet?.map { "%02X".format(it) }.toString())
+//                .setPositiveButton("OK", null)
+//                .create()
+//                .show()
+//        }
 
     }
 

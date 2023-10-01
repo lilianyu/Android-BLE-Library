@@ -29,11 +29,12 @@ class NedRequest private constructor(val type: RequestType) {
         }
     }
 
+    private var listeners = mutableListOf<NedRequestListener>()
     private var successCallbacks = mutableListOf<((packet: NedPacket?) -> Unit)>()
     private var failCallbacks = mutableListOf<((failInfo: FailInfo, packet: NedPacket?) -> Unit)>()
     private var progressCallbacks = mutableListOf<((packet:ByteArray, soFar:Int, totalSize:Int) -> Unit)>()
     private var timeoutCallbacks = mutableListOf<(() -> Unit)>()
-    private var requestHandler: BleDevice? = null
+    private lateinit var bleDevice: BleDevice
     private val logger: Logger = XLog.tag("NedRequest").build()
 
     //upgrade package info
@@ -54,9 +55,18 @@ class NedRequest private constructor(val type: RequestType) {
     var started = false
     var finished = false
 
-    fun setRequestHandler(requestHandler: BleDevice): NedRequest {
-        this.requestHandler = requestHandler
+    fun setBleDevice(device: BleDevice): NedRequest {
+        this.bleDevice = device
         return this
+    }
+
+
+    fun addListeners(listener: NedRequestListener) {
+        listeners.add(listener)
+    }
+
+    fun removeListener(listener: NedRequestListener) {
+        listeners.remove(listener)
     }
 
     fun done(callback: (packet: NedPacket?) -> Unit): NedRequest {
@@ -108,19 +118,29 @@ class NedRequest private constructor(val type: RequestType) {
     }
 
     fun enqueue() {
-        requestHandler?.processNedRequest(this)
+        bleDevice?.processNedRequest(this)
     }
 
     fun notifyStarted() {
         started = true
 
         logger.i("request started~")
+
+        listeners.forEach {
+            it.onStart(bleDevice.device)
+        }
     }
 
     fun notifyDone(packet: NedPacket?) {
         logger.i("request finished~")
 
+        bleDevice?.isRequestOngoing = false
         finished = true
+
+        listeners.forEach {
+            it.onCompleted(bleDevice.device, packet)
+        }
+
         successCallbacks.forEach { successCallback ->
             successCallback.invoke(packet)
         }
@@ -129,15 +149,24 @@ class NedRequest private constructor(val type: RequestType) {
     fun notifyFail(failInfo: FailInfo, packet: NedPacket?) {
         logger.i("request failed with $failInfo, ${packet?.packet}")
 
+        bleDevice?.isRequestOngoing = false
         finished = true
         failCallbacks.forEach { failCallback ->
             failCallback.invoke(failInfo, packet)
+        }
+
+        listeners.forEach {
+            it.onFail(bleDevice.device, failInfo, packet)
         }
     }
 
     fun notifyProgress(packet:ByteArray, soFar:Int, totalSize:Int) {
         progressCallbacks.forEach { progressCallback ->
             progressCallback.invoke(packet, soFar, totalSize)
+        }
+
+        listeners.forEach {
+            it.onProgress(bleDevice.device, packet, soFar, totalSize)
         }
     }
 
@@ -147,7 +176,7 @@ class NedRequest private constructor(val type: RequestType) {
                 return if (packet.commandCode == NedPacket.NED_RESP_GET_DEVICE_INFO) {
                     true
                 } else {
-                    notifyFail(FailInfo.Fail_CommandCodeNotMatch.apply {
+                    notifyFail(FailInfo.FailCommandCodeNotMatch.apply {
                         extra = "expected ${NedPacket.NED_RESP_GET_DEVICE_INFO}, actually get ${packet.commandCode}"
                     }, packet)
                     false
@@ -157,7 +186,7 @@ class NedRequest private constructor(val type: RequestType) {
                 return if (packet.commandCode == NedPacket.NED_RESP_GET_PLAIN_DATA) {
                     true
                 } else {
-                    notifyFail(FailInfo.Fail_CommandCodeNotMatch.apply {
+                    notifyFail(FailInfo.FailCommandCodeNotMatch.apply {
                         extra = "expected ${NedPacket.NED_RESP_GET_PLAIN_DATA}, actually get ${packet.commandCode}"
                     }, packet)
                     false
@@ -168,7 +197,7 @@ class NedRequest private constructor(val type: RequestType) {
                     || packet.commandCode == NedPacket.NED_RESP_SEND_UPGRADE_PACKAGE) {
                     true
                 } else {
-                    notifyFail(FailInfo.Fail_CommandCodeNotMatch.apply {
+                    notifyFail(FailInfo.FailCommandCodeNotMatch.apply {
                         extra = "expected ${NedPacket.NED_RESP_UPGRADE} or ${NedPacket.NED_RESP_SEND_UPGRADE_PACKAGE}, actually get ${packet.commandCode}"
                     }, packet)
                     false

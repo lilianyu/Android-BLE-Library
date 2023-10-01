@@ -19,12 +19,14 @@ import java.security.MessageDigest
 import kotlin.math.min
 
 
-class BleDevice(context: Context) : BleManager(context) {
+class BleDevice(context: Context, val device: BluetoothDevice) : BleManager(context) {
     companion object {
         private const val TAG = "BleDevice"
         const val MAX_PAYLOAD_SIZE = 512
         const val MAX_PACKET_SIZE = 512 + 9
     }
+
+    var isRequestOngoing: Boolean = false
 
     var hardwareVersion: UInt? = null
     var softwareVersion: UInt? = null
@@ -41,55 +43,11 @@ class BleDevice(context: Context) : BleManager(context) {
 
     override fun getGattCallback(): BleManagerGattCallback = GattCallback()
 
-    override fun log(priority: Int, message: String) {
-//        if (BuildConfig.DEBUG || priority == Log.ERROR) {
-//            Log.println(priority, TAG, message)
-//        }
-
-        logger.log(priority, message)
-
-    }
-
-    private suspend fun write(reqPacket: NedPacket, nedRequest: NedRequest): NedPacket? {
-
-        XLog.i("new packet starts: size = ${reqPacket.packet?.size}")
-        writeCharacteristic(
-            dataCharacteristic,
-            reqPacket.packet,
-            BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-        )
-            .fail { _: BluetoothDevice, status: Int ->
-                nedRequest.notifyFail(FailInfo.Fail_WriteCharacterisc.apply {
-                    extra = "writeCharacteristic fail status = $status"
-                }, null)
-            }
-            .split()
-            .enqueue()
-
-        val respByteArray = internalChannel.receive()
-
-        try {
-            XLog.i("收到数据, $respByteArray")
-
-            return NedPacket.parsePacket(respByteArray!!)
-
-        } catch (e: NedParseException) {
-            XLog.e("响应包解析错误, $e")
-
-            nedRequest.notifyFail(FailInfo.Fail_RespParseError.apply {
-                extra = "$e"
-            }, null)
-        }
-
-        return null
-    }
-
     private suspend fun getDeviceInfo(nedRequest: NedRequest): BleDevice {
-
         write(PacketFactory.packetForDeviceInfo(), nedRequest)?.let {
             if (nedRequest.checkResponse(it)) {
                 if (it.payload == null) {
-                    nedRequest.notifyFail(FailInfo.Fail_RespPayloadNull, it)
+                    nedRequest.notifyFail(FailInfo.FailRespPayloadNull, it)
                 } else {
                     it.payload?.let { payload ->
                         ByteBuffer.wrap(payload).apply {
@@ -114,7 +72,7 @@ class BleDevice(context: Context) : BleManager(context) {
         write(PacketFactory.packetForPlainData(), nedRequest)?.let {
             if (nedRequest.checkResponse(it)) {
                 if (it.payload == null) {
-                    nedRequest.notifyFail(FailInfo.Fail_RespPayloadNull, it)
+                    nedRequest.notifyFail(FailInfo.FailRespPayloadNull, it)
                 } else {
                     it.payload?.let { payload ->
                     }
@@ -129,7 +87,7 @@ class BleDevice(context: Context) : BleManager(context) {
 
     private suspend fun upgradePackage(nedRequest: NedRequest): BleDevice {
         if (nedRequest.newVersion == null) {
-            nedRequest.notifyFail(FailInfo.Fail_ArgumentsVerificationError.apply {
+            nedRequest.notifyFail(FailInfo.FailArgumentsVerificationError.apply {
                 extra = "升级操作，新版本号不能为Null"
             }, null)
             return this
@@ -138,7 +96,7 @@ class BleDevice(context: Context) : BleManager(context) {
         nedRequest.newVersion?.let { newVersion ->
             softwareVersion?.let { oldVersion ->
                 if (newVersion.toUInt() <= oldVersion) {
-                    nedRequest.notifyFail(FailInfo.Fail_ArgumentsVerificationError.apply {
+                    nedRequest.notifyFail(FailInfo.FailArgumentsVerificationError.apply {
                         extra = "升级操作无法降级，新版本号：${newVersion}，旧版本号: ${oldVersion}"
                     }, null)
                     return this
@@ -150,13 +108,13 @@ class BleDevice(context: Context) : BleManager(context) {
             val md5 = MessageDigest.getInstance("MD5").digest(pkg)
             val packetForUpgradeInfo = PacketFactory.packetForUpgradeInfo(pkg.size, nedRequest.newVersion!!, md5)
 
-            write(packetForUpgradeInfo, nedRequest)?.let {
+            write(packetForUpgradeInfo, nedRequest)?.also {
                 if (nedRequest.checkResponse(it)) {
                     if (it.payload == null) {
-                        nedRequest.notifyFail(FailInfo.Fail_RespPayloadNull, it)
+                        nedRequest.notifyFail(FailInfo.FailRespPayloadNull, it)
                     }
                 }
-            }
+            } ?: return this
 
             var index = 0
             val totalSize = pkg.size
@@ -174,7 +132,7 @@ class BleDevice(context: Context) : BleManager(context) {
                 val packet =
                     PacketFactory.packetForPackage(pkg.copyOfRange(from, to), index.toUShort())
 
-                write(packet, nedRequest)?.let {
+                write(packet, nedRequest)?.also {
                     it.payload?.let { payload ->
                         ByteBuffer.wrap(payload).apply {
                             when (get(0).toInt()) {
@@ -191,7 +149,7 @@ class BleDevice(context: Context) : BleManager(context) {
                                         delay(nedRequest.retryDelay)
                                     } else {
                                         continueLoop = false
-                                        nedRequest.notifyFail(FailInfo.Fail_PackageSendError.apply {
+                                        nedRequest.notifyFail(FailInfo.FailPackageSendError.apply {
                                             extra = "升级包发送重试超限"
                                         }, it)
                                     }
@@ -202,14 +160,14 @@ class BleDevice(context: Context) : BleManager(context) {
                                 }
                                 3 -> { //接收完成，MD5校验错误
                                     continueLoop = false
-                                    nedRequest.notifyFail(FailInfo.Fail_PackageSendError.apply {
+                                    nedRequest.notifyFail(FailInfo.FailPackageSendError.apply {
                                         extra = "MD5校验不通过"
                                     }, it)
                                 }
                             }
                         }
                     }
-                }
+                } ?: return this
             }
         }
 
@@ -219,6 +177,12 @@ class BleDevice(context: Context) : BleManager(context) {
     fun processNedRequest(nedRequest: NedRequest) {
         nedRequest.notifyStarted()
 
+        if (isRequestOngoing) {
+            nedRequest.notifyFail(FailInfo.FailDeviceBusy, null)
+            return
+        }
+
+        isRequestOngoing = true
         when(nedRequest.type) {
             NedRequest.RequestType.GET_DEVICE_INFO -> {
                 defaultScope.launch {
@@ -236,6 +200,47 @@ class BleDevice(context: Context) : BleManager(context) {
                 }
             }
         }
+    }
+
+    private suspend fun write(reqPacket: NedPacket, nedRequest: NedRequest): NedPacket? {
+
+        var nedPacket:NedPacket? = null
+
+        XLog.i("new packet starts: size = ${reqPacket.packet?.size}")
+        val timeout = withTimeoutOrNull(3000) {
+            writeCharacteristic(
+                dataCharacteristic,
+                reqPacket.packet,
+                BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+                .fail { _: BluetoothDevice, status: Int ->
+                    nedRequest.notifyFail(FailInfo.FailWriteCharacteristics.apply {
+                        extra = "writeCharacteristic fail status = $status"
+                    }, null)
+                }
+                .split()
+                .enqueue()
+
+            val respByteArray = internalChannel.receive()
+
+            try {
+                XLog.i("收到数据, $respByteArray")
+
+                nedPacket = NedPacket.parsePacket(respByteArray!!)
+
+            } catch (e: NedParseException) {
+                XLog.e("响应包解析错误, $e")
+
+                nedRequest.notifyFail(FailInfo.FailRespParseError.apply {
+                    extra = "$e"
+                }, null)
+            }
+        }
+
+        if (timeout == null) {
+            nedRequest.notifyFail(FailInfo.FailTimeout, null)
+        }
+
+        return nedPacket
     }
 
 
@@ -309,6 +314,15 @@ class BleDevice(context: Context) : BleManager(context) {
         override fun onServicesInvalidated() {
             eventCharacteristic = null
         }
+    }
+
+
+    override fun log(priority: Int, message: String) {
+//        if (BuildConfig.DEBUG || priority == Log.ERROR) {
+//            Log.println(priority, TAG, message)
+//        }
+
+        logger.log(priority, message)
     }
 
 }

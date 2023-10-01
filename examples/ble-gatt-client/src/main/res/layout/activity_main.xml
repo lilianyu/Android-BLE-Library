@@ -70,11 +70,11 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:accessibilityLiveRegion="none"
-                    android:text="商务垂询：17813702830"
+                    android:text="@string/business_number"
                     android:gravity="bottom|center"
                     android:textColor="#2B2B2B"
                     android:textSize="14sp"
-                    android:layout_marginBottom="16dp"/>
+                    android:layout_marginBottom="24dp"/>
             </LinearLayout>
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 

@@ -50,6 +50,4 @@ object GattServiceClient: ServiceConnection {
             gattServiceProxy = null
         }
     }
-
-
 }
