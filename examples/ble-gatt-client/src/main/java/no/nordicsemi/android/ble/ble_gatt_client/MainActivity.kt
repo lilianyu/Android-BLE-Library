@@ -211,14 +211,6 @@ class MainActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        // Startup our Bluetooth GATT service explicitly so it continues to run even if
-        // this activity is not in focus
-//        if ( Build.VERSION.SDK_INT >=  Build.VERSION_CODES.O ) {
-//            startForegroundService(Intent(this, GattService::class.java))
-//        } else {
-            startService(Intent(this, GattService::class.java))
-//        }
-
         viewModel.packageInfo.observe(this) { packageInfo ->
             if (packageInfo == null) {
                 AlertDialog.Builder(this@MainActivity)
@@ -426,13 +418,6 @@ class MainActivity : AppCompatActivity() {
         if (!GattServiceClient.isConnected()) {
             GattServiceClient.bindService(applicationContext)
         }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-
-        // We only want the service around for as long as our app is being run on the device
-        stopService(Intent(this, GattService::class.java))
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {

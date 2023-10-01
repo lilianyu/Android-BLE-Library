@@ -24,8 +24,7 @@ object GattServiceClient: ServiceConnection {
                 null,
                 ctx,
                 GattService::class.java
-            ), this, 0
-        )
+            ), this, Context.BIND_AUTO_CREATE)
     }
 
     fun unbindService(ctx: Context) {
