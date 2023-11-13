@@ -16,7 +16,7 @@
         app:layout_constraintHorizontal_bias="0.497"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:srcCompat="@drawable/icon4" />
+        app:srcCompat="@drawable/ic_detector" />
 
     <TextView
         android:id="@+id/tag_app_name"

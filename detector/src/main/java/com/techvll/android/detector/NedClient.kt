@@ -2,6 +2,7 @@ package com.techvll.android.detector
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
@@ -89,7 +90,7 @@ class NedClient(val context:Context) {
                 }
 
                 nedRequest.addListeners(object : NedRequestListener() {
-                    val notification = NotificationCompat.Builder(context, GattService::class.java.simpleName)
+                    val notificationBuilder = NotificationCompat.Builder(context, GattService::class.java.simpleName)
                         .setSmallIcon(R.mipmap.ic_launcher)
                         .setContentTitle(context.getString(R.string.gatt_service_name))
                         .setContentText(context.getString(R.string.gatt_service_running_notification))
@@ -114,12 +115,14 @@ class NedClient(val context:Context) {
                             notificationService.createNotificationChannel(notificationChannel)
                         }
 
-                        notification.setProgress(100, 0, false)
-                        (context as Service).startForeground(1, notification.build())
+                        notificationBuilder.setProgress(100, 0, false)
+                        val notification = notificationBuilder.build()
+                        notification.flags = Notification.FLAG_FOREGROUND_SERVICE
+                        (context as Service).startForeground(1, notification)
                     }
 
                     override fun onCompleted(device: BluetoothDevice, packet: NedPacket?) {
-                        notification
+                        notificationBuilder
                             .setContentText("升级已完成")
 
                         if (ActivityCompat.checkSelfPermission(
@@ -137,7 +140,7 @@ class NedClient(val context:Context) {
                             return
                         }
 
-                        notificationManager.notify(1, notification.build());
+                        notificationManager.notify(1, notificationBuilder.build());
 
                         (context as Service).stopForeground(Service.STOP_FOREGROUND_DETACH)
                     }
@@ -156,7 +159,7 @@ class NedClient(val context:Context) {
                         totalSize: Int
                     ) {
                         val percentage = soFar*100 / totalSize
-                        notification
+                        notificationBuilder
                             .setProgress(100, percentage, false)
                             .setContentText("${context.getString(R.string.gatt_service_running_notification)}：${percentage}%")
                         if (ActivityCompat.checkSelfPermission(
@@ -173,7 +176,7 @@ class NedClient(val context:Context) {
                             // for ActivityCompat#requestPermissions for more details.
                             return
                         }
-                        notificationManager.notify(1, notification.build());
+                        notificationManager.notify(1, notificationBuilder.build());
                     }
 
                     override fun onTimeout(device: BluetoothDevice) {

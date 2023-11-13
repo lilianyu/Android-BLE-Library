@@ -23,7 +23,6 @@ class BleDevice(context: Context, val device: BluetoothDevice) : BleManager(cont
     companion object {
         private const val TAG = "BleDevice"
         const val MAX_PAYLOAD_SIZE = 512
-        const val MAX_PACKET_SIZE = 512 + 9
     }
 
     var isRequestOngoing: Boolean = false
